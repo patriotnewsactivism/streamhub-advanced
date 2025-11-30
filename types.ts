@@ -1,3 +1,4 @@
+
 export enum Platform {
   YOUTUBE = 'YouTube',
   FACEBOOK = 'Facebook',
@@ -46,6 +47,7 @@ export interface AppState {
   isStreaming: boolean;
   isRecording: boolean;
   streamDuration: number;
+  recordingDuration: number;
 }
 
 export interface NotificationConfig {
@@ -62,4 +64,10 @@ export interface CloudVMStats {
   bandwidthSaved: number; // in MB
   serverSpeed: number; // in Mbps
   activeJob?: string;
+}
+
+export interface AudioMixerState {
+  micVolume: number; // 0 to 1
+  musicVolume: number;
+  videoVolume: number;
 }
