@@ -31,7 +31,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
   const overlayImgRef = useRef<HTMLImageElement>(new Image());
   const bgImgRef = useRef<HTMLImageElement>(new Image());
   
-  // Initialize video elements
+  // Initialize video elements configuration
   useEffect(() => {
     [camVideoRef, screenVideoRef, mediaVideoRef].forEach(ref => {
         ref.current.autoplay = true;
@@ -42,33 +42,61 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
     mediaVideoRef.current.loop = true; 
   }, []);
 
+  // Helper to safely play video
+  const safePlay = (videoRef: HTMLVideoElement, streamOrUrl: MediaStream | string | null) => {
+    if (!streamOrUrl) {
+       videoRef.pause();
+       if (videoRef.srcObject) videoRef.srcObject = null;
+       if (videoRef.getAttribute('src')) {
+         videoRef.removeAttribute('src');
+         videoRef.load();
+       }
+       return;
+    }
+
+    // If it's a MediaStream
+    if (typeof streamOrUrl !== 'string') {
+        if (videoRef.srcObject !== streamOrUrl) {
+            videoRef.srcObject = streamOrUrl;
+            videoRef.play().catch(e => {
+                if (e.name !== 'AbortError') console.error("Video play error (Stream):", e);
+            });
+        }
+    } 
+    // If it's a URL (string)
+    else {
+        if (videoRef.getAttribute('src') !== streamOrUrl) {
+            videoRef.src = streamOrUrl;
+            videoRef.play().catch(e => {
+                if (e.name !== 'AbortError') console.error("Video play error (URL):", e);
+            });
+        }
+    }
+  };
+
   // Update Media Sources
   useEffect(() => {
-    if (cameraStream && !isLowDataMode) {
-      camVideoRef.current.srcObject = cameraStream;
-      camVideoRef.current.play().catch(e => console.error("Cam play error", e));
+    if (isLowDataMode) {
+        safePlay(camVideoRef.current, null);
     } else {
-      camVideoRef.current.srcObject = null;
+        safePlay(camVideoRef.current, cameraStream);
     }
   }, [cameraStream, isLowDataMode]);
 
   useEffect(() => {
-    if (screenStream && !isLowDataMode) {
-      screenVideoRef.current.srcObject = screenStream;
-      screenVideoRef.current.play().catch(e => console.error("Screen play error", e));
+    if (isLowDataMode) {
+        safePlay(screenVideoRef.current, null);
     } else {
-      screenVideoRef.current.srcObject = null;
+        safePlay(screenVideoRef.current, screenStream);
     }
   }, [screenStream, isLowDataMode]);
 
   // Handle Uploaded Video Asset
   useEffect(() => {
-      if (activeVideoUrl && !isLowDataMode) {
-          mediaVideoRef.current.src = activeVideoUrl;
-          mediaVideoRef.current.play().catch(e => console.error("Media play error", e));
+      if (isLowDataMode) {
+        safePlay(mediaVideoRef.current, null);
       } else {
-          mediaVideoRef.current.pause();
-          mediaVideoRef.current.src = '';
+        safePlay(mediaVideoRef.current, activeVideoUrl);
       }
   }, [activeVideoUrl, isLowDataMode]);
 
@@ -97,6 +125,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    // Set resolution to 720p internally for consistency
     canvas.width = 1280;
     canvas.height = 720;
 
@@ -110,7 +139,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
         ctx.fillText("CLOUD VM ACTIVE", canvas.width/2, canvas.height/2);
         ctx.font = '20px monospace';
         ctx.fillStyle = '#94a3b8';
-        ctx.fillText("Rendering paused on device to save data", canvas.width/2, canvas.height/2 + 40);
+        ctx.fillText("Rendering paused on device", canvas.width/2, canvas.height/2 + 40);
         return; // EXIT LOOP
     }
 
@@ -241,8 +270,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
           }
 
           // Camera (Presenter) - Bottom Right, larger
-          // If background is custom, maybe we want a clean cutout?
-          // For now, standard box
           const camW = w * 0.35;
           const camH = h * 0.35; // slightly wider aspect usually better for presenters
           const camX = w - camW - 50;
@@ -255,8 +282,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
 
       // Draw Overlay Media (Logo/Image/Lower Third)
       if (activeMediaUrl && overlayImgRef.current.complete && overlayImgRef.current.naturalWidth > 0) {
-          // If the image is large (like 1920x1080), assume full screen overlay (transparent PNG)
-          // If small, put in corner
           if (overlayImgRef.current.naturalWidth > 500) {
               ctx.drawImage(overlayImgRef.current, 0, 0, w, h);
           } else {
@@ -282,7 +307,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
             ref={canvasRef} 
             className="w-full h-full object-contain"
         />
-        {/* Overlay indicator for audio/video state if needed, mostly handled by UI */}
     </div>
   );
 });

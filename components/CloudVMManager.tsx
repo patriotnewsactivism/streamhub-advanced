@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { CloudVMStats, MediaAsset, MediaType } from '../types';
-import { Cloud, Server, Wifi, Activity, Zap, Play, Square, Link as LinkIcon, Download, CheckCircle } from 'lucide-react';
+import { CloudVMStats } from '../types';
+import { Cloud, Server, Wifi, Activity, Zap, Square, Link as LinkIcon, CheckCircle, DollarSign, Settings, BarChart3 } from 'lucide-react';
 
 interface CloudVMManagerProps {
   isStreaming: boolean;
@@ -16,6 +16,12 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
   });
   const [directLink, setDirectLink] = useState('');
   const [isBooting, setIsBooting] = useState(true);
+  const [selectedBitrate, setSelectedBitrate] = useState(6000); // kbps
+  const [sessionCost, setSessionCost] = useState(0);
+
+  // Cost Constants (Approximate Google Cloud Pricing)
+  const VM_HOURLY_COST = 0.067; // e2-standard-2
+  const EGRESS_COST_PER_GB = 0.085; // Standard Tier
 
   // Simulate VM Bootup
   useEffect(() => {
@@ -23,23 +29,37 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
     return () => clearTimeout(timer);
   }, []);
 
-  // Simulate Live Stats
+  // Simulate Live Stats & Cost Calculation
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
     if (isStreaming) {
       setVmStats(prev => ({ ...prev, status: 'streaming' }));
       interval = setInterval(() => {
-        setVmStats(prev => ({
-          ...prev,
-          bandwidthSaved: prev.bandwidthSaved + (Math.random() * 5), // Simulate saving ~5MB per second
-          serverSpeed: 800 + Math.random() * 200 // Simulate Gigabit cloud connection
-        }));
+        setVmStats(prev => {
+          // Calculate Data Used in this second (Bitrate / 8 bits = Bytes)
+          const mbitsPerSecond = selectedBitrate / 1024 / 8; // MB per second
+          return {
+            ...prev,
+            bandwidthSaved: prev.bandwidthSaved + mbitsPerSecond,
+            serverSpeed: 800 + Math.random() * 200 // Simulate Gigabit cloud connection
+          };
+        });
+
+        // Calculate Real-time Cost
+        // VM cost per second + Data Egress cost per second
+        setSessionCost(prev => {
+            const vmCostPerSec = VM_HOURLY_COST / 3600;
+            const dataPerSecGB = (selectedBitrate / 8 / 1024 / 1024); // GB per second
+            const egressCostPerSec = dataPerSecGB * EGRESS_COST_PER_GB;
+            return prev + vmCostPerSec + egressCostPerSec;
+        });
+
       }, 1000);
     } else {
       setVmStats(prev => ({ ...prev, status: 'idle', serverSpeed: 0 }));
     }
     return () => clearInterval(interval);
-  }, [isStreaming]);
+  }, [isStreaming, selectedBitrate]);
 
   const handleStart = () => {
     if (!directLink) return;
@@ -48,6 +68,13 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
     setTimeout(() => {
         onStartCloudStream(directLink);
     }, 1500);
+  };
+
+  const getQualityLabel = (br: number) => {
+      if (br === 4000) return "720p Std";
+      if (br === 6000) return "1080p High";
+      if (br === 8000) return "1080p Ultra";
+      return "";
   };
 
   if (isBooting) {
@@ -63,109 +90,140 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
   }
 
   return (
-    <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center p-8 relative overflow-hidden">
+    <div className="w-full h-full bg-slate-900 flex flex-col items-center p-4 md:p-8 relative overflow-y-auto">
       {/* Background Decor */}
       <div className="absolute inset-0 bg-[linear-gradient(rgba(17,24,39,0.9)_1px,transparent_1px),linear-gradient(90deg,rgba(17,24,39,0.9)_1px,transparent_1px)] bg-[size:40px_40px] opacity-20 pointer-events-none"></div>
       
-      <div className="max-w-3xl w-full bg-slate-800/50 backdrop-blur-md border border-brand-500/30 rounded-2xl p-8 shadow-2xl relative z-10">
+      <div className="max-w-4xl w-full bg-slate-800/80 backdrop-blur-md border border-brand-500/30 rounded-2xl p-4 md:p-8 shadow-2xl relative z-10 flex flex-col gap-6">
         
         {/* Header Stats */}
-        <div className="flex justify-between items-center mb-8 border-b border-gray-700 pb-6">
-            <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-full ${isStreaming ? 'bg-green-500/20 text-green-400 animate-pulse' : 'bg-gray-700 text-gray-400'}`}>
-                    <Server size={32} />
+        <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 border-b border-gray-700 pb-4">
+            <div className="flex items-center gap-3">
+                <div className={`p-2 md:p-3 rounded-full ${isStreaming ? 'bg-green-500/20 text-green-400 animate-pulse' : 'bg-gray-700 text-gray-400'}`}>
+                    <Server size={24} className="md:w-8 md:h-8" />
                 </div>
                 <div>
-                    <h2 className="text-xl font-bold text-white">Cloud Stream Engine</h2>
-                    <p className="text-xs text-brand-400 font-mono flex items-center gap-2">
-                        <span className="w-2 h-2 bg-green-500 rounded-full inline-block"></span>
-                        VM ONLINE: us-central1-a
+                    <h2 className="text-lg md:text-xl font-bold text-white">Cloud Engine</h2>
+                    <p className="text-[10px] md:text-xs text-brand-400 font-mono flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block"></span>
+                        ONLINE: us-central1-a
                     </p>
                 </div>
             </div>
 
-            <div className="flex gap-6 text-right">
-                <div>
-                    <div className="text-xs text-gray-400 uppercase tracking-wider">Mobile Data Saved</div>
-                    <div className="text-2xl font-mono text-green-400 font-bold">{vmStats.bandwidthSaved.toFixed(1)} MB</div>
+            <div className="grid grid-cols-2 md:flex md:gap-8 gap-4">
+                 <div>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider flex items-center gap-1"><DollarSign size={10}/> Est. Cost</div>
+                    <div className="text-lg md:text-2xl font-mono text-white font-bold">${sessionCost.toFixed(4)}</div>
                 </div>
                 <div>
-                    <div className="text-xs text-gray-400 uppercase tracking-wider">Cloud Uplink</div>
-                    <div className="text-2xl font-mono text-brand-400 font-bold flex items-center justify-end gap-1">
-                        {isStreaming ? Math.floor(vmStats.serverSpeed) : 0} <span className="text-sm">Mbps</span>
-                    </div>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider flex items-center gap-1"><Wifi size={10}/> Saved Data</div>
+                    <div className="text-lg md:text-2xl font-mono text-green-400 font-bold">{vmStats.bandwidthSaved.toFixed(1)} MB</div>
                 </div>
             </div>
         </div>
 
         {/* Status Display */}
         {isStreaming ? (
-            <div className="py-12 flex flex-col items-center justify-center text-center space-y-6">
-                <div className="w-32 h-32 rounded-full border-4 border-green-500/30 flex items-center justify-center relative">
-                    <div className="absolute inset-0 rounded-full border-4 border-t-green-500 animate-spin"></div>
-                    <Zap size={48} className="text-green-500" fill="currentColor" />
+            <div className="flex flex-col gap-6">
+                <div className="flex flex-col items-center justify-center text-center space-y-4 py-4">
+                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-full border-4 border-green-500/30 flex items-center justify-center relative">
+                        <div className="absolute inset-0 rounded-full border-4 border-t-green-500 animate-spin"></div>
+                        <Zap size={32} className="text-green-500 md:w-12 md:h-12" fill="currentColor" />
+                    </div>
+                    <div>
+                        <h3 className="text-xl md:text-2xl font-bold text-white mb-1">Streaming Active</h3>
+                        <p className="text-gray-400 text-xs md:text-sm">
+                           Relaying @ {selectedBitrate} kbps
+                        </p>
+                    </div>
+                    <button 
+                        onClick={onStopCloudStream}
+                        className="w-full md:w-auto px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-lg"
+                    >
+                        <Square size={18} fill="currentColor" /> STOP STREAM
+                    </button>
                 </div>
-                <div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Streaming Active</h3>
-                    <p className="text-gray-400 max-w-md mx-auto">
-                        The cloud server is currently handling 100% of the video processing. 
-                        Your phone is in <span className="text-green-400 font-bold">Low Power Mode</span>.
-                    </p>
+
+                <div className="bg-slate-900/60 p-4 rounded-xl border border-gray-700 space-y-3">
+                     <h4 className="text-xs font-bold text-gray-300 uppercase flex items-center gap-2">
+                        <Activity size={14} className="text-brand-500" /> VM Telemetry
+                     </h4>
+                     
+                     <div className="space-y-2">
+                         <div className="flex justify-between text-xs">
+                             <span className="text-gray-500">CPU Usage</span>
+                             <span className="text-green-400 font-mono">24%</span>
+                         </div>
+                         <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                             <div className="bg-green-500 h-full w-[24%]"></div>
+                         </div>
+                         
+                         <div className="flex justify-between text-xs pt-1">
+                             <span className="text-gray-500">Uplink</span>
+                             <span className="text-brand-400 font-mono">{Math.floor(vmStats.serverSpeed)} Mbps</span>
+                         </div>
+                         <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                             <div className="bg-brand-500 h-full w-[85%]"></div>
+                         </div>
+                     </div>
                 </div>
-                <button 
-                    onClick={onStopCloudStream}
-                    className="px-8 py-3 bg-red-600 hover:bg-red-500 text-white rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg hover:shadow-red-900/50"
-                >
-                    <Square size={18} fill="currentColor" /> STOP CLOUD STREAM
-                </button>
             </div>
         ) : (
-            <div className="space-y-6">
-                <div className="bg-slate-900/80 p-6 rounded-lg border border-gray-700">
-                    <label className="block text-sm font-bold text-gray-300 mb-3 uppercase flex items-center gap-2">
-                        <LinkIcon size={16} className="text-brand-500" /> 
-                        Source Video Link
+            <div className="flex flex-col gap-4">
+                <div className="bg-slate-900/80 p-4 rounded-lg border border-gray-700">
+                    <label className="block text-xs font-bold text-gray-300 mb-2 uppercase flex items-center gap-2">
+                        <LinkIcon size={14} className="text-brand-500" /> 
+                        Video Source URL
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col md:flex-row gap-2">
                         <input 
                             value={directLink}
                             onChange={(e) => setDirectLink(e.target.value)}
-                            placeholder="Paste link (Dropbox, Drive, S3, or Direct MP4)..."
-                            className="flex-1 bg-black border border-gray-600 rounded-lg px-4 py-3 text-white focus:border-brand-500 outline-none font-mono text-sm"
+                            placeholder="Paste MP4 link..."
+                            className="flex-1 bg-black border border-gray-600 rounded-lg px-3 py-3 text-white focus:border-brand-500 outline-none font-mono text-sm"
                         />
-                        <button 
-                            className="bg-gray-700 hover:bg-gray-600 px-4 rounded-lg text-white"
-                            title="Check Link"
-                        >
-                            <CheckCircle size={20} />
-                        </button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
-                        <Wifi size={12} />
-                        Link is processed by server. 0MB data usage on device.
-                    </p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-slate-900/50 rounded border border-gray-700/50">
-                        <div className="text-xs text-gray-500 uppercase">Est. Bandwidth Usage</div>
-                        <div className="text-lg font-bold text-white">~50 KB/s</div>
-                        <div className="text-xs text-green-500">Low Data Mode</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                     {/* Bitrate Selector */}
+                    <div className="p-3 bg-slate-900/50 rounded border border-gray-700/50">
+                        <div className="text-[10px] text-gray-500 uppercase flex items-center gap-2 mb-2">
+                            <Settings size={10}/> Quality
+                        </div>
+                        <div className="flex gap-2">
+                            {[4000, 6000, 8000].map(br => (
+                                <button
+                                    key={br}
+                                    onClick={() => setSelectedBitrate(br)}
+                                    className={`flex-1 py-2 text-[10px] md:text-xs font-bold rounded border ${selectedBitrate === br ? 'bg-brand-600 border-brand-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`}
+                                >
+                                    {br/1000}k
+                                </button>
+                            ))}
+                        </div>
+                        <div className="text-[10px] text-center mt-1 text-gray-400">{getQualityLabel(selectedBitrate)}</div>
                     </div>
-                     <div className="p-4 bg-slate-900/50 rounded border border-gray-700/50">
-                        <div className="text-xs text-gray-500 uppercase">Encoding Quality</div>
-                        <div className="text-lg font-bold text-white">1080p / 60fps</div>
-                        <div className="text-xs text-brand-500">Handled by Cloud</div>
+
+                     <div className="p-3 bg-slate-900/50 rounded border border-gray-700/50 flex flex-col justify-center text-center md:text-left">
+                        <div className="text-[10px] text-gray-500 uppercase flex items-center justify-center md:justify-start gap-2">
+                            <BarChart3 size={10}/> Projected Rate
+                        </div>
+                        <div className="flex items-center justify-center md:justify-start gap-2 mt-1">
+                            <span className="text-xl font-bold text-white">~${(VM_HOURLY_COST + ((selectedBitrate / 8 / 1024 / 1024) * 3600 * EGRESS_COST_PER_GB)).toFixed(2)}</span>
+                            <span className="text-[10px] text-gray-400">/hr</span>
+                        </div>
                     </div>
                 </div>
 
                 <button 
                     onClick={handleStart}
                     disabled={!directLink}
-                    className="w-full py-4 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-brand-900/20 transition-all"
+                    className="w-full py-4 mt-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-brand-900/20 transition-all active:scale-95"
                 >
-                    <Cloud size={24} /> 
-                    START CLOUD STREAM
+                    <Cloud size={20} /> 
+                    START CLOUD VM
                 </button>
             </div>
         )}

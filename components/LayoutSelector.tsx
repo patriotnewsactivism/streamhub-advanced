@@ -17,19 +17,19 @@ const LayoutSelector: React.FC<LayoutSelectorProps> = ({ currentLayout, onSelect
   ];
 
   return (
-    <div className="flex justify-center gap-4 bg-dark-800 p-4 rounded-lg border border-gray-700">
+    <div className="flex flex-row md:flex-wrap gap-3 overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
       {layouts.map((item) => (
         <button
           key={item.mode}
           onClick={() => onSelect(item.mode)}
-          className={`flex flex-col items-center gap-2 p-3 rounded-lg transition-all w-20
+          className={`flex flex-col items-center justify-center gap-1.5 p-2 md:p-3 rounded-lg transition-all min-w-[70px] md:min-w-[80px] shrink-0
             ${currentLayout === item.mode 
               ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/50 scale-105' 
-              : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+              : 'bg-dark-800/50 md:bg-transparent text-gray-400 hover:bg-gray-700 hover:text-white'
             }`}
         >
           {item.icon}
-          <span className="text-xs font-medium">{item.label}</span>
+          <span className="text-[10px] md:text-xs font-medium">{item.label}</span>
         </button>
       ))}
     </div>
