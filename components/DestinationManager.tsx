@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Destination, Platform } from '../types';
-import { Trash2, Plus, Youtube, Facebook, Twitch, Globe, ToggleLeft, ToggleRight, Wifi, Info, Key, Server, Save, X } from 'lucide-react';
+import { Trash2, Plus, Youtube, Facebook, Twitch, Globe, ToggleLeft, ToggleRight, Wifi, Info, Key, Server, Save, X, Lock } from 'lucide-react';
 
 interface DestinationManagerProps {
   destinations: Destination[];
@@ -8,6 +9,7 @@ interface DestinationManagerProps {
   onRemoveDestination: (id: string) => void;
   onToggleDestination: (id: string) => void;
   isStreaming: boolean;
+  planLimit: number; // New Prop
 }
 
 const DestinationManager: React.FC<DestinationManagerProps> = ({ 
@@ -15,13 +17,16 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
   onAddDestination, 
   onRemoveDestination, 
   onToggleDestination,
-  isStreaming
+  isStreaming,
+  planLimit
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPlatform, setNewPlatform] = useState<Platform>(Platform.YOUTUBE);
   const [newName, setNewName] = useState('');
   const [serverUrl, setServerUrl] = useState('');
   const [streamKey, setStreamKey] = useState('');
+
+  const canAddMore = destinations.length < planLimit;
 
   // Standard RTMP Ingest Endpoints
   const PRESETS: Record<Platform, string> = {
@@ -72,7 +77,7 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Wifi size={20} /> Destinations
         </h2>
-        {!showAddForm && (
+        {!showAddForm && canAddMore && (
           <button 
             onClick={() => {
                 setShowAddForm(true);
@@ -84,6 +89,13 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
           </button>
         )}
       </div>
+
+      {!canAddMore && (
+          <div className="mb-4 bg-yellow-900/20 p-3 rounded border border-yellow-500/20 text-xs text-yellow-200 flex gap-2 items-center">
+             <Lock size={16} className="text-yellow-400 shrink-0" />
+             <p><strong>Free Plan Limit Reached.</strong> Upgrade to Pro to stream to unlimited destinations.</p>
+          </div>
+      )}
 
       <div className="mb-4 bg-blue-900/20 p-3 rounded border border-blue-500/20 text-xs text-blue-200 flex gap-2">
          <Info size={16} className="text-blue-400 shrink-0" />
@@ -176,7 +188,6 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
             </div>
             
             <div className="flex items-center gap-2 shrink-0">
-                {/* Status Indicator */}
                {dest.status === 'live' && (
                     <span className="text-[10px] font-bold text-red-500 animate-pulse border border-red-500/50 px-1 rounded">LIVE</span>
                )}

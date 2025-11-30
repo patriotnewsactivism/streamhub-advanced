@@ -8,9 +8,10 @@ interface CloudVMManagerProps {
   onStartCloudStream: (url: string) => void;
   onStopCloudStream: () => void;
   user: User;
+  isLocked?: boolean; // NEW: Forces lock screen for free tier
 }
 
-const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartCloudStream, onStopCloudStream, user }) => {
+const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartCloudStream, onStopCloudStream, user, isLocked = false }) => {
   const [vmStats, setVmStats] = useState<CloudVMStats>({
     status: 'idle',
     bandwidthSaved: 0,
@@ -33,9 +34,13 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
 
   // Simulate VM Bootup
   useEffect(() => {
-    const timer = setTimeout(() => setIsBooting(false), 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isLocked) {
+        const timer = setTimeout(() => setIsBooting(false), 2000);
+        return () => clearTimeout(timer);
+    } else {
+        setIsBooting(false);
+    }
+  }, [isLocked]);
 
   // Simulate Live Stats & Cost Calculation
   useEffect(() => {
@@ -54,7 +59,6 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
         });
 
         // Calculate Real-time Cost
-        // VM cost per second + Data Egress cost per second
         setSessionCost(prev => {
             const vmCostPerSec = VM_HOURLY_COST / 3600;
             const dataPerSecGB = (selectedBitrate / 8 / 1024 / 1024); // GB per second
@@ -99,6 +103,27 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
       if (br === 8000) return "1080p Ultra";
       return "";
   };
+
+  // --- LOCKED STATE ---
+  if (isLocked) {
+      return (
+          <div className="w-full h-full flex items-center justify-center p-8 bg-dark-900 relative overflow-hidden">
+             <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1558494949-ef526b0042a0?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-10"></div>
+             <div className="relative z-10 bg-dark-800/90 backdrop-blur border border-gray-700 p-8 rounded-2xl max-w-md text-center shadow-2xl">
+                 <div className="w-16 h-16 bg-brand-900/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-brand-500/30">
+                     <Lock size={32} className="text-brand-400" />
+                 </div>
+                 <h2 className="text-2xl font-bold text-white mb-2">Cloud Streaming Locked</h2>
+                 <p className="text-gray-400 mb-6">
+                     The Cloud Virtual Machine is a premium feature. Upgrade to Pro to save 90% of your mobile data.
+                 </p>
+                 <button className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white rounded-lg font-bold">
+                     Upgrade to Pro ($29.99/mo)
+                 </button>
+             </div>
+          </div>
+      );
+  }
 
   if (isBooting) {
     return (

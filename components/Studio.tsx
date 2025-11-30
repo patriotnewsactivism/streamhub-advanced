@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Destination, 
@@ -9,7 +8,8 @@ import {
   NotificationConfig,
   StreamMode,
   AudioMixerState,
-  User
+  User,
+  UserPlan
 } from '../types';
 import CanvasCompositor, { CanvasRef } from './CanvasCompositor';
 import DestinationManager from './DestinationManager';
@@ -20,7 +20,11 @@ import NotificationPanel from './NotificationPanel';
 import CloudVMManager from './CloudVMManager';
 import AudioMixer from './AudioMixer';
 import { generateStreamMetadata } from '../services/geminiService';
-import { Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon, Globe, Settings, Disc, Download, LogOut, User as UserIcon } from 'lucide-react';
+import { 
+  Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, 
+  AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon, 
+  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu 
+} from 'lucide-react';
 
 interface StudioProps {
     onLogout: () => void;
@@ -28,6 +32,20 @@ interface StudioProps {
 }
 
 const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
+  // --- Plan Limits Logic ---
+  const getPlanLimits = (plan: UserPlan) => {
+      switch (plan) {
+          case 'always_free': return { maxDest: 1, allowCloud: false, showWatermark: true, label: 'Free Tier' };
+          case 'free_trial': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Free Trial' };
+          case 'pro': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Pro Plan' };
+          case 'business': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Business' };
+          case 'admin': return { maxDest: 999, allowCloud: true, showWatermark: false, label: 'Admin' };
+          default: return { maxDest: 1, allowCloud: false, showWatermark: true, label: 'Free' };
+      }
+  };
+
+  const planLimits = getPlanLimits(user.plan);
+
   // --- State ---
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [streamMode, setStreamMode] = useState<StreamMode>('local');
@@ -109,12 +127,13 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
 
               const audioEl = audioPlayerRef.current;
               audioEl.crossOrigin = "anonymous";
+              audioEl.loop = true;
               try {
                   const source = ctx.createMediaElementSource(audioEl);
                   const gain = ctx.createGain();
                   source.connect(gain);
                   gain.connect(dest);
-                  gain.connect(ctx.destination);
+                  gain.connect(ctx.destination); // Monitor audio
                   musicNodeRef.current = source;
                   musicGainRef.current = gain;
               } catch (e) {
@@ -166,413 +185,249 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                       
                       source.connect(gain);
                       gain.connect(destNodeRef.current);
-                      gain.connect(ctx.destination);
+                      gain.connect(ctx.destination); // Monitor video audio
 
                       videoNodeRef.current = source;
                       videoGainRef.current = gain;
                   } catch (e) {
-                      // Node might already exist
+                      console.warn("Video Element Source create error", e);
                   }
               }
           }
-      }, 1000);
+      }, 2000);
       return () => clearTimeout(timer);
-  }, [mediaAssets]);
-
-  // Audio Player Logic
-  useEffect(() => {
-    const audio = audioPlayerRef.current;
-    if (activeAudioId) {
-        const asset = mediaAssets.find(a => a.id === activeAudioId);
-        if (asset) {
-            audio.src = asset.url;
-            audio.loop = true;
-            audio.play().catch(e => console.error("Audio play failed", e));
-        }
-    } else {
-        audio.pause();
-    }
-  }, [activeAudioId, mediaAssets]);
-
-  // Timers
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (appState.isStreaming) {
-      interval = setInterval(() => {
-        setAppState(prev => ({ ...prev, streamDuration: prev.streamDuration + 1 }));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [appState.isStreaming]);
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (appState.isRecording) {
-      interval = setInterval(() => {
-        setAppState(prev => ({ ...prev, recordingDuration: prev.recordingDuration + 1 }));
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [appState.isRecording]);
-
-  // Initial Camera Load
-  const initCam = async () => {
-    if (streamMode === 'cloud_vm') return; 
-    setPermissionError(null);
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setPermissionError("Media devices API is not supported in this browser.");
-        return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true });
-      setCameraStream(stream);
-      setIsMicMuted(false);
-      setIsCamMuted(false);
-      
-      if (audioCtxRef.current?.state === 'suspended') {
-          audioCtxRef.current.resume();
-      }
-    } catch (err: any) {
-      console.error("Camera access denied", err);
-      let msg = "Could not access camera/microphone.";
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          msg = "Permission denied. Please allow camera access in your browser settings.";
-      }
-      setPermissionError(msg);
-    }
-  };
-
-  useEffect(() => {
-    initCam();
   }, []);
 
   // --- Handlers ---
-
-  const handleRecording = () => {
-      if (appState.isRecording) {
-          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-              mediaRecorderRef.current.stop();
-          }
-          setAppState(prev => ({ ...prev, isRecording: false, recordingDuration: 0 }));
-      } else {
-          if (!canvasRef.current || !destNodeRef.current) return;
-          
-          const canvasStream = canvasRef.current.getStream();
-          const audioStream = destNodeRef.current.stream;
-          
-          if (canvasStream.getVideoTracks().length === 0) {
-              alert("No video source to record.");
-              return;
-          }
-
-          const combinedStream = new MediaStream([
-              ...canvasStream.getVideoTracks(),
-              ...audioStream.getAudioTracks()
-          ]);
-
-          recordedChunksRef.current = [];
-          const recorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm;codecs=vp9,opus' });
-          
-          recorder.ondataavailable = (e) => {
-              if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-          };
-          
-          recorder.onstop = () => {
-              const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.style.display = 'none';
-              a.href = url;
-              a.download = `recording-${new Date().toISOString()}.webm`;
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => {
-                  document.body.removeChild(a);
-                  window.URL.revokeObjectURL(url);
-              }, 100);
-          };
-
-          recorder.start(1000); 
-          mediaRecorderRef.current = recorder;
-          setAppState(prev => ({ ...prev, isRecording: true }));
-      }
-  };
-
-  const handleNotify = () => {
-     if (!notificationConfig.notifyOnLive) return;
-     const subject = encodeURIComponent("I'm Live Now!");
-     const body = encodeURIComponent(`Watch my stream here! \n\nTitle: ${generatedInfo?.title || 'Live Stream'}\n\nJoin me!`);
-     if (notificationConfig.email) {
-         window.open(`mailto:${notificationConfig.email}?subject=${subject}&body=${body}`, '_blank');
-         setShowNotificationToast('Opening Email Client...');
-     } else if (notificationConfig.phone) {
-         window.open(`sms:${notificationConfig.phone}?&body=${body}`, '_blank');
-         setShowNotificationToast('Opening Messaging App...');
-     }
-  };
-
-  const toggleStream = () => {
-    if (appState.isStreaming) {
-      setAppState({ ...appState, isStreaming: false, streamDuration: 0 });
-      setDestinations(prev => prev.map(d => ({ ...d, status: 'offline' })));
+  const toggleCamera = async () => {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        setCameraStream(null);
+        setIsCamMuted(true);
     } else {
-      const enabled = destinations.filter(d => d.isEnabled);
-      if (enabled.length === 0) {
-        alert("Please add and enable at least one destination.");
-        setActiveMobileTab('destinations'); 
-        return;
-      }
-      setAppState({ ...appState, isStreaming: true });
-      handleNotify();
-      setDestinations(prev => prev.map(d => d.isEnabled ? { ...d, status: 'live' } : d));
-    }
-  };
-
-  const toggleScreenShare = async () => {
-    if (streamMode === 'cloud_vm') {
-        alert("Screen sharing is not available in Cloud Mode.");
-        return;
-    }
-    if (screenStream) {
-      screenStream.getTracks().forEach(t => t.stop());
-      setScreenStream(null);
-    } else {
-      try {
-        if (!navigator.mediaDevices?.getDisplayMedia) {
-          alert("Screen sharing is not supported on this device/browser.");
-          return;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            setCameraStream(stream);
+            setIsCamMuted(false);
+            setIsMicMuted(false);
+            setPermissionError(null);
+        } catch (err) {
+            setPermissionError("Camera access denied. Please check permissions.");
         }
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-        setScreenStream(stream);
-        if (layout === LayoutMode.FULL_CAM) setLayout(LayoutMode.PIP);
-        stream.getVideoTracks()[0].onended = () => setScreenStream(null);
-      } catch (err: any) {
-         console.error(err);
-      }
     }
   };
 
-  const toggleMic = () => {
-    if (cameraStream) {
-      cameraStream.getAudioTracks().forEach(track => track.enabled = !isMicMuted);
-      setIsMicMuted(!isMicMuted);
+  const toggleScreen = async () => {
+    if (screenStream) {
+        screenStream.getTracks().forEach(track => track.stop());
+        setScreenStream(null);
+    } else {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            setScreenStream(stream);
+            setLayout(LayoutMode.FULL_SCREEN);
+        } catch (err) {
+            console.warn("Screen share cancelled");
+        }
     }
   };
 
-  const toggleCam = () => {
-    if (cameraStream) {
-      cameraStream.getVideoTracks().forEach(track => track.enabled = !isCamMuted);
-      setIsCamMuted(!isCamMuted);
-    }
-  };
-
-  const handleGenerateAI = async () => {
-    if (!streamTopic) return;
-    setIsGenerating(true);
-    const result = await generateStreamMetadata(streamTopic);
-    setGeneratedInfo(result);
-    setIsGenerating(false);
-  };
-
-  const handleMediaUpload = (file: File, type: MediaType) => {
-      const url = URL.createObjectURL(file);
-      const newAsset: MediaAsset = { id: Date.now().toString(), type, url, name: file.name, source: 'local' };
-      setMediaAssets(prev => [...prev, newAsset]);
-      if (type === 'image' && !activeImageId) setActiveImageId(newAsset.id);
-      if (type === 'video' && !activeVideoId) setActiveVideoId(newAsset.id);
+  const handleUpload = (file: File, type: MediaType) => {
+    const newAsset: MediaAsset = {
+        id: Date.now().toString(),
+        type,
+        name: file.name,
+        url: URL.createObjectURL(file),
+        source: 'local'
+    };
+    setMediaAssets(prev => [...prev, newAsset]);
   };
 
   const handleCloudImport = (file: { name: string; url: string; type: MediaType }) => {
-      const newAsset: MediaAsset = { id: Date.now().toString(), type: file.type, url: file.url, name: file.name, source: 'cloud' };
+      const newAsset: MediaAsset = {
+          id: Date.now().toString(),
+          type: file.type,
+          name: file.name,
+          url: file.url,
+          source: 'cloud'
+      };
       setMediaAssets(prev => [...prev, newAsset]);
-      if (file.type === 'image') setActiveImageId(newAsset.id);
-      if (file.type === 'video') setActiveVideoId(newAsset.id);
+  };
+
+  const handleDeleteAsset = (id: string) => {
+      setMediaAssets(prev => prev.filter(a => a.id !== id));
+      if (activeImageId === id) setActiveImageId(null);
+      if (activeVideoId === id) setActiveVideoId(null);
+      if (activeAudioId === id) setActiveAudioId(null);
   };
 
   const handleToggleAsset = (id: string, type: MediaType) => {
       if (type === 'image') setActiveImageId(prev => prev === id ? null : id);
-      else if (type === 'video') {
-          setActiveVideoId(prev => prev === id ? null : id);
-          if (activeVideoId !== id && layout === LayoutMode.FULL_CAM) setLayout(LayoutMode.FULL_SCREEN);
-      } 
-      else if (type === 'audio') setActiveAudioId(prev => prev === id ? null : id);
+      if (type === 'video') setActiveVideoId(prev => prev === id ? null : id);
+      if (type === 'audio') setActiveAudioId(prev => prev === id ? null : id);
   };
 
-  const formatTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  // Sync Audio Player with Active Audio Asset
+  useEffect(() => {
+      const asset = mediaAssets.find(a => a.id === activeAudioId);
+      if (asset) {
+          audioPlayerRef.current.src = asset.url;
+          audioPlayerRef.current.play().catch(console.error);
+      } else {
+          audioPlayerRef.current.pause();
+      }
+  }, [activeAudioId, mediaAssets]);
+
+  const toggleStreaming = () => {
+      if (appState.isStreaming) {
+          setAppState(prev => ({ ...prev, isStreaming: false }));
+          setDestinations(prev => prev.map(d => ({ ...d, status: 'offline' })));
+      } else {
+          setAppState(prev => ({ ...prev, isStreaming: true }));
+          setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'live' }) : d));
+      }
   };
 
-  const activeImageUrl = activeImageId ? mediaAssets.find(a => a.id === activeImageId)?.url || null : null;
-  const activeVideoUrl = activeVideoId ? mediaAssets.find(a => a.id === activeVideoId)?.url || null : null;
+  const handleGenerateMetadata = async () => {
+      if (!streamTopic) return;
+      setIsGenerating(true);
+      const data = await generateStreamMetadata(streamTopic);
+      setGeneratedInfo(data);
+      setIsGenerating(false);
+  };
+
+  const activeImageUrl = mediaAssets.find(a => a.id === activeImageId)?.url || null;
+  const activeVideoUrl = mediaAssets.find(a => a.id === activeVideoId)?.url || null;
 
   return (
-    <div className="h-screen w-full bg-dark-900 text-gray-100 flex flex-col md:flex-row overflow-hidden font-sans">
-      
-      {/* Cloud Modal */}
-      <CloudImportModal isOpen={isCloudModalOpen} onClose={() => setIsCloudModalOpen(false)} onImport={handleCloudImport} />
+    <div className="flex flex-col h-screen bg-black text-white font-sans overflow-hidden">
+      {/* --- HEADER --- */}
+      <header className="h-16 bg-dark-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
+        <div className="flex items-center gap-3">
+            <div className="bg-brand-600 p-1.5 rounded-lg">
+                <Sparkles size={18} fill="white" />
+            </div>
+            <h1 className="font-bold text-lg hidden md:block">StreamHub<span className="text-brand-400">Pro</span></h1>
+            <div className="bg-dark-800 px-2 py-1 rounded text-xs text-gray-400 border border-gray-700">
+                {planLimits.label}
+            </div>
+        </div>
 
-      {/* Toast */}
-      {showNotificationToast && (
-          <div className="fixed top-16 left-1/2 transform -translate-x-1/2 z-[200] bg-green-600 text-white px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 animate-fade-in text-sm whitespace-nowrap">
-              <Share2 size={16} /> <span className="font-bold">{showNotificationToast}</span>
-          </div>
-      )}
+        <div className="flex-1 max-w-xl mx-4 hidden md:flex gap-2">
+            <div className="flex-1 relative">
+                <input 
+                    type="text"
+                    value={streamTopic}
+                    onChange={(e) => setStreamTopic(e.target.value)}
+                    placeholder="Enter topic for AI generation..."
+                    className="w-full bg-dark-800 border border-gray-700 rounded-lg pl-3 pr-10 py-1.5 text-sm focus:border-brand-500 outline-none transition-all"
+                />
+                <button 
+                    onClick={handleGenerateMetadata}
+                    disabled={isGenerating || !streamTopic}
+                    className="absolute right-1 top-1 p-1 text-brand-400 hover:text-white disabled:opacity-50"
+                >
+                    <Sparkles size={16} />
+                </button>
+            </div>
+        </div>
 
-      {/* --- MOBILE DRAWERS --- */}
-      <div className={`md:hidden fixed inset-x-0 bottom-[60px] top-16 z-30 bg-dark-900 transform transition-transform duration-300 ${activeMobileTab === 'media' ? 'translate-y-0' : 'translate-y-full'}`}>
-           <div className="flex items-center justify-between p-3 border-b border-gray-800 bg-dark-800">
-                <h3 className="text-sm font-bold uppercase text-gray-400">Media Library</h3>
-                <button onClick={() => setIsCloudModalOpen(true)} className="text-xs bg-brand-600 px-2 py-1 rounded flex items-center gap-1"><Cloud size={12}/> Import</button>
-           </div>
-           <div className="h-full overflow-y-auto pb-20">
-             <MediaBin 
-                 assets={mediaAssets} 
-                 activeAssets={{ image: activeImageId, video: activeVideoId, audio: activeAudioId }}
-                 onUpload={handleMediaUpload} 
-                 onDelete={(id) => setMediaAssets(mediaAssets.filter(a => a.id !== id))}
-                 onToggleAsset={handleToggleAsset}
-             />
-           </div>
-      </div>
+        <div className="flex items-center gap-3">
+             <button onClick={() => setShowMobileSettings(!showMobileSettings)} className="md:hidden p-2 text-gray-400 hover:text-white">
+                 <Settings size={20} />
+             </button>
+             <div className="hidden md:flex items-center gap-2">
+                 <div className="text-right">
+                     <div className="text-sm font-bold">{user.name}</div>
+                     <div className="text-xs text-gray-500">{user.email}</div>
+                 </div>
+                 <div className="w-8 h-8 bg-brand-900 rounded-full flex items-center justify-center border border-brand-500 text-brand-400 font-bold">
+                     {user.name.charAt(0)}
+                 </div>
+                 <button onClick={onLogout} className="p-2 text-gray-500 hover:text-red-500" title="Logout">
+                     <LogOut size={18} />
+                 </button>
+             </div>
+        </div>
+      </header>
 
-      <div className={`md:hidden fixed inset-x-0 bottom-[60px] top-16 z-30 bg-dark-900 transform transition-transform duration-300 ${activeMobileTab === 'destinations' ? 'translate-y-0' : 'translate-y-full'}`}>
-            <div className="h-full overflow-y-auto pb-20 p-4">
+      {/* --- MAIN LAYOUT --- */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* LEFT SIDEBAR (Destinations) - Desktop */}
+        <aside className={`w-80 bg-dark-900 border-r border-gray-800 flex-col z-10 ${activeMobileTab === 'destinations' ? 'flex absolute inset-0 md:static w-full' : 'hidden md:flex'}`}>
+            <div className="flex-1 overflow-hidden p-2">
                 <DestinationManager 
                     destinations={destinations}
-                    onAddDestination={(d) => setDestinations([...destinations, d])}
-                    onRemoveDestination={(id) => setDestinations(destinations.filter(d => d.id !== id))}
-                    onToggleDestination={(id) => setDestinations(destinations.map(d => d.id === id ? {...d, isEnabled: !d.isEnabled} : d))}
+                    onAddDestination={(d) => setDestinations(prev => [...prev, d])}
+                    onRemoveDestination={(id) => setDestinations(prev => prev.filter(d => d.id !== id))}
+                    onToggleDestination={(id) => setDestinations(prev => prev.map(d => d.id === id ? {...d, isEnabled: !d.isEnabled} : d))}
                     isStreaming={appState.isStreaming}
+                    planLimit={planLimits.maxDest}
                 />
             </div>
-      </div>
+            <NotificationPanel 
+                config={notificationConfig}
+                onUpdate={setNotificationConfig}
+            />
+        </aside>
 
-       {showMobileSettings && (
-           <div className="md:hidden fixed inset-0 z-50 bg-black/90 backdrop-blur">
-               <div className="p-6 space-y-6">
-                    <div className="flex justify-between items-center text-white">
-                        <h2 className="text-xl font-bold">Stream Settings</h2>
-                        <button onClick={() => setShowMobileSettings(false)}><Settings/></button>
-                    </div>
-                    {/* Audio Mixer Mobile */}
-                    <div className="bg-dark-800 p-4 rounded-xl border border-gray-700">
-                        <label className="text-gray-400 text-xs font-bold uppercase mb-3 block">Audio Mixer</label>
-                        <AudioMixer mixerState={mixerState} onChange={(k, v) => setMixerState(p => ({...p, [k]: v}))} />
-                    </div>
-                    {/* Other settings... */}
-                    <div className="bg-dark-800 p-4 rounded-xl border border-gray-700">
-                        <label className="text-gray-400 text-xs font-bold uppercase mb-3 block">Stream Engine</label>
-                        <div className="flex gap-2">
-                            <button onClick={() => setStreamMode('local')} className={`flex-1 py-3 rounded-lg text-sm font-bold flex flex-col items-center gap-1 ${streamMode === 'local' ? 'bg-brand-600 text-white' : 'bg-dark-900 text-gray-400'}`}>
-                                <Camera size={20}/> Local Studio
-                            </button>
-                            <button onClick={() => setStreamMode('cloud_vm')} className={`flex-1 py-3 rounded-lg text-sm font-bold flex flex-col items-center gap-1 ${streamMode === 'cloud_vm' ? 'bg-green-600 text-white' : 'bg-dark-900 text-gray-400'}`}>
-                                <Server size={20}/> Cloud VM
-                            </button>
-                        </div>
-                    </div>
-                    <NotificationPanel config={notificationConfig} onUpdate={setNotificationConfig} />
-               </div>
-           </div>
-       )}
-
-
-      {/* --- DESKTOP LEFT SIDEBAR --- */}
-      <aside className="hidden md:flex w-80 flex-col bg-dark-900 border-r border-gray-800 overflow-hidden shrink-0 z-10">
-            <div className="p-4 border-b border-gray-800 bg-dark-800 flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                     <div className="bg-brand-600 p-1.5 rounded"><Monitor size={18} className="text-white"/></div>
-                     <span className="font-bold text-lg tracking-tight">StreamHub<span className="text-brand-500">Pro</span></span>
-                </div>
-                <button onClick={onLogout} className="text-gray-500 hover:text-white" title="Logout"><LogOut size={16}/></button>
-            </div>
+        {/* CENTER (Canvas & Controls) */}
+        <main className={`flex-1 flex flex-col min-w-0 bg-black relative ${activeMobileTab === 'studio' ? 'flex' : 'hidden md:flex'}`}>
             
-            {/* User Profile Status */}
-            <div className="p-4 border-b border-gray-800">
-                 <div className="flex items-center gap-3 mb-3">
-                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-brand-500 flex items-center justify-center font-bold text-white shadow-lg">
-                         {user.name.charAt(0)}
-                     </div>
-                     <div className="min-w-0">
-                         <div className="text-sm font-bold text-white truncate">{user.name}</div>
-                         <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
-                             {user.plan === 'admin' ? 'Master Admin' : user.plan === 'pro' ? 'Pro Plan' : 'Free Trial'}
-                         </div>
-                     </div>
-                 </div>
-                 {user.plan === 'free_trial' && (
-                     <div className="bg-brand-900/30 border border-brand-500/30 rounded px-2 py-1 text-xs text-brand-300 text-center">
-                         Trial expires in 7 days
-                     </div>
-                 )}
-            </div>
-
-            <div className="p-4 border-b border-gray-800">
-                 <div className="flex bg-dark-900 p-1 rounded-lg border border-gray-700">
-                    <button onClick={() => setStreamMode('local')} className={`flex-1 py-1.5 text-xs font-bold rounded flex items-center justify-center gap-2 ${streamMode === 'local' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-                        <Camera size={14} /> LOCAL
-                    </button>
-                    <button onClick={() => setStreamMode('cloud_vm')} className={`flex-1 py-1.5 text-xs font-bold rounded flex items-center justify-center gap-2 ${streamMode === 'cloud_vm' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-                        <Server size={14} /> CLOUD
-                    </button>
+            {/* AI Generated Info Toast */}
+            {generatedInfo && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 w-full max-w-lg px-4">
+                    <div className="bg-brand-900/90 backdrop-blur border border-brand-500/50 p-4 rounded-xl shadow-2xl animate-fade-in-down relative">
+                        <button onClick={() => setGeneratedInfo(null)} className="absolute top-2 right-2 text-brand-300 hover:text-white"><Square size={14}/></button>
+                        <h3 className="text-sm font-bold text-white mb-1 flex items-center gap-2">
+                             <Sparkles size={14} className="text-brand-400"/> AI Suggestion
+                        </h3>
+                        <div className="text-white font-medium mb-1">{generatedInfo.title}</div>
+                        <div className="text-xs text-brand-200 mb-2">{generatedInfo.description}</div>
+                        <div className="flex flex-wrap gap-1">
+                            {generatedInfo.hashtags.map(tag => (
+                                <span key={tag} className="text-[10px] bg-black/40 px-2 py-0.5 rounded text-brand-300">{tag}</span>
+                            ))}
+                        </div>
+                        <button 
+                            onClick={() => {
+                                // Apply logic would go here
+                                setGeneratedInfo(null);
+                            }}
+                            className="mt-2 w-full bg-brand-600 hover:bg-brand-500 text-xs font-bold py-1.5 rounded"
+                        >
+                            Use This Metadata
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            <div className="p-4 border-b border-gray-800 shrink-0">
-                <h3 className="text-xs font-bold text-gray-400 mb-2 uppercase flex items-center gap-2">
-                    <Sparkles size={14} className="text-brand-400"/> AI Metadata
-                </h3>
-                <div className="space-y-2">
-                    <input className="w-full bg-dark-800 border border-gray-700 rounded p-2 text-xs text-white outline-none" placeholder="Topic..." value={streamTopic} onChange={(e) => setStreamTopic(e.target.value)}/>
-                    <button onClick={handleGenerateAI} disabled={isGenerating || !streamTopic} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 rounded font-bold">{isGenerating ? 'Generating...' : 'Generate'}</button>
-                </div>
-            </div>
-
-            <div className={`flex-1 overflow-hidden flex flex-col relative ${streamMode === 'cloud_vm' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                <div className="px-4 py-2 bg-dark-800 border-b border-gray-700 font-bold text-xs text-gray-400 uppercase flex justify-between items-center">
-                    Assets <button onClick={() => setIsCloudModalOpen(true)} className="text-[10px] bg-dark-700 hover:bg-dark-600 px-2 py-0.5 rounded flex items-center gap-1 text-blue-400"><Cloud size={10} /> Cloud Import</button>
-                </div>
-                <MediaBin assets={mediaAssets} activeAssets={{ image: activeImageId, video: activeVideoId, audio: activeAudioId }} onUpload={handleMediaUpload} onDelete={(id) => setMediaAssets(mediaAssets.filter(a => a.id !== id))} onToggleAsset={handleToggleAsset}/>
-            </div>
-      </aside>
-
-      {/* --- CENTER MAIN STAGE --- */}
-      <main className="flex-1 flex flex-col relative bg-black min-w-0">
-         {/* Mobile Header */}
-         <header className="md:hidden h-14 bg-dark-800 border-b border-gray-700 flex items-center justify-between px-4 shrink-0 z-20">
-             <div className="flex items-center gap-2">
-                 <div className="bg-brand-600 p-1 rounded"><Monitor size={16} className="text-white"/></div>
-                 <span className="font-bold text-white tracking-tight">StreamHub</span>
-             </div>
-             <div className="flex items-center gap-3">
-                 {appState.isStreaming && <div className="text-red-500 font-mono text-xs font-bold animate-pulse">{formatTime(appState.streamDuration)}</div>}
-                 {appState.isRecording && <div className="text-white font-mono text-xs font-bold flex items-center gap-1"><Disc className="text-red-500 animate-pulse" size={12}/> {formatTime(appState.recordingDuration)}</div>}
-                 
-                 <button onClick={toggleStream} className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-lg ${appState.isStreaming ? 'bg-red-600 text-white' : 'bg-brand-600 text-white'}`}>
-                    {appState.isStreaming ? 'END' : 'LIVE'}
-                 </button>
-                 <button onClick={onLogout} className="text-gray-400"><LogOut size={16}/></button>
-             </div>
-         </header>
-
-         {/* Content Area */}
-         <div className="flex-1 flex flex-col md:p-6 overflow-hidden relative">
-            {streamMode === 'cloud_vm' ? (
-                <CloudVMManager 
-                    isStreaming={appState.isStreaming} 
-                    onStartCloudStream={(url) => { console.log("Cloud URL:", url); toggleStream(); }} 
-                    onStopCloudStream={toggleStream} 
-                    user={user}
-                />
-            ) : (
-                <>
-                    {/* Canvas Stage */}
-                    <div className="w-full flex-1 md:bg-dark-900/50 md:rounded-2xl md:border md:border-gray-800 flex items-center justify-center relative overflow-hidden bg-black p-0 md:p-8">
-                        <div className="w-full aspect-video max-h-full mx-auto relative shadow-2xl">
-                             <CanvasCompositor 
+            {/* Canvas Area */}
+            <div className="flex-1 p-2 md:p-4 flex flex-col relative overflow-hidden">
+                <div className="flex-1 relative bg-dark-900 rounded-lg overflow-hidden border border-gray-800 shadow-2xl flex items-center justify-center">
+                    {streamMode === 'cloud_vm' ? (
+                        <CloudVMManager 
+                             isStreaming={appState.isStreaming}
+                             onStartCloudStream={(url) => {
+                                 toggleStreaming();
+                                 // Logic to handoff url to backend would go here
+                             }}
+                             onStopCloudStream={toggleStreaming}
+                             user={user}
+                             isLocked={!planLimits.allowCloud}
+                        />
+                    ) : (
+                        <>
+                            {permissionError && (
+                                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/80">
+                                    <div className="text-center">
+                                        <AlertCircle className="mx-auto text-red-500 mb-2" size={32} />
+                                        <p className="text-red-400 font-bold">{permissionError}</p>
+                                    </div>
+                                </div>
+                            )}
+                            <CanvasCompositor 
                                 ref={canvasRef}
                                 layout={layout}
                                 cameraStream={cameraStream}
@@ -580,99 +435,107 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                                 activeMediaUrl={activeImageUrl}
                                 activeVideoUrl={activeVideoUrl}
                                 backgroundUrl={null}
-                                isLowDataMode={streamMode === 'cloud_vm'} 
+                                showWatermark={planLimits.showWatermark}
                             />
-                            {(!cameraStream && permissionError) && (
-                                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                                    <div className="bg-dark-800 p-6 rounded-xl border border-red-500/50 text-center">
-                                        <AlertCircle className="text-red-500 mx-auto mb-2" size={32} />
-                                        <p className="text-gray-300 text-sm mb-4">{permissionError}</p>
-                                        <button onClick={initCam} className="bg-brand-600 text-white px-4 py-2 rounded font-bold text-sm">Enable Camera</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Controls Bar */}
+            <div className="bg-dark-900 border-t border-gray-800 p-2 md:p-4 flex flex-col gap-4 shrink-0 z-20">
+                {/* Top Row Controls */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    
+                    <div className="flex items-center gap-2">
+                        <button onClick={toggleCamera} className={`p-3 rounded-full transition-all ${cameraStream ? 'bg-gray-700 text-white' : 'bg-red-500/20 text-red-500'}`}>
+                            {cameraStream ? <Camera size={20} /> : <VideoOff size={20} />}
+                        </button>
+                        <button onClick={() => setIsMicMuted(!isMicMuted)} className={`p-3 rounded-full transition-all ${!isMicMuted ? 'bg-gray-700 text-white' : 'bg-red-500/20 text-red-500'}`}>
+                            {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                        </button>
+                        <button onClick={toggleScreen} className={`p-3 rounded-full transition-all ${screenStream ? 'bg-brand-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                            {screenStream ? <Monitor size={20} /> : <MonitorOff size={20} />}
+                        </button>
                     </div>
 
-                    {/* Controls Deck */}
-                    <div className="bg-dark-800 border-t border-gray-700 p-2 md:p-4 md:rounded-xl md:mb-0 md:mx-6 md:-mt-6 z-10 shrink-0 shadow-2xl">
-                         <div className="flex flex-col xl:flex-row items-center gap-4">
-                             {/* Primary Toggles */}
-                             <div className="flex items-center gap-3 md:gap-4 w-full xl:w-auto justify-center xl:border-r xl:border-gray-600 xl:pr-6">
-                                <button onClick={toggleMic} disabled={!cameraStream} className={`p-3 md:p-4 rounded-full transition-all ${isMicMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white'}`}>
-                                    {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
-                                </button>
-                                <button onClick={toggleCam} disabled={!cameraStream} className={`p-3 md:p-4 rounded-full transition-all ${isCamMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white'}`}>
-                                    {isCamMuted ? <VideoOff size={20} /> : <Video size={20} />}
-                                </button>
-                                <button onClick={toggleScreenShare} className={`hidden md:block p-4 rounded-full transition-all ${screenStream ? 'bg-brand-600 text-white' : 'bg-gray-700 text-white'}`}>
-                                    {screenStream ? <MonitorOff size={20} /> : <Monitor size={20} />}
-                                </button>
-                                {/* Record Button */}
-                                <button 
-                                    onClick={handleRecording} 
-                                    className={`p-3 md:p-4 rounded-full transition-all flex items-center gap-2 ${appState.isRecording ? 'bg-white text-red-600 animate-pulse' : 'bg-gray-700 text-white'}`}
-                                    title="Start Recording"
-                                >
-                                    {appState.isRecording ? <Square size={20} fill="currentColor"/> : <Disc size={20} />}
-                                </button>
-                             </div>
-                             
-                             {/* Layout Selector */}
-                             <div className="w-full xl:w-auto overflow-x-auto flex-1 border-r border-gray-600 pr-6">
-                                 <LayoutSelector currentLayout={layout} onSelect={setLayout} />
-                             </div>
+                    <div className="flex-1 max-w-xl">
+                        <AudioMixer mixerState={mixerState} onChange={(k, v) => setMixerState(p => ({...p, [k]: v}))} />
+                    </div>
 
-                             {/* Audio Mixer (Desktop) */}
-                             <div className="hidden xl:block w-96">
-                                 <AudioMixer mixerState={mixerState} onChange={(k, v) => setMixerState(p => ({...p, [k]: v}))} />
-                             </div>
-
-                             {/* Desktop Go Live */}
-                             <div className="hidden xl:flex items-center gap-4 pl-4">
-                                {appState.isStreaming && <div className="text-red-500 font-mono font-bold animate-pulse">{formatTime(appState.streamDuration)}</div>}
-                                <button onClick={toggleStream} className={`px-6 py-3 rounded-lg font-bold shadow-lg flex items-center gap-2 ${appState.isStreaming ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-600 hover:bg-brand-500'}`}>
-                                    {appState.isStreaming ? <Square size={18} fill="currentColor"/> : <Play size={18} fill="currentColor" />}
-                                    {appState.isStreaming ? 'END STREAM' : 'GO LIVE'}
-                                </button>
-                             </div>
+                    <div className="flex items-center gap-2">
+                         <div className="flex bg-dark-800 rounded p-1 border border-gray-700">
+                             <button 
+                                onClick={() => setStreamMode('local')}
+                                className={`px-3 py-1.5 text-xs font-bold rounded flex items-center gap-2 transition-all ${streamMode === 'local' ? 'bg-brand-600 text-white shadow' : 'text-gray-400'}`}
+                             >
+                                <Monitor size={14} /> Local
+                             </button>
+                             <button 
+                                onClick={() => setStreamMode('cloud_vm')}
+                                className={`px-3 py-1.5 text-xs font-bold rounded flex items-center gap-2 transition-all ${streamMode === 'cloud_vm' ? 'bg-green-600 text-white shadow' : 'text-gray-400'}`}
+                             >
+                                <Cloud size={14} /> Cloud VM
+                             </button>
                          </div>
+                         
+                         <button 
+                            onClick={toggleStreaming}
+                            className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 ${appState.isStreaming ? 'bg-red-600 text-white animate-pulse' : 'bg-brand-600 text-white hover:bg-brand-500'}`}
+                         >
+                            {appState.isStreaming ? <Square size={20} fill="currentColor"/> : <Play size={20} fill="currentColor"/>}
+                            {appState.isStreaming ? 'END STREAM' : 'GO LIVE'}
+                         </button>
                     </div>
-                </>
-            )}
-         </div>
+                </div>
 
-         {/* Mobile Bottom Navigation */}
-         <nav className="md:hidden h-[60px] bg-dark-900 border-t border-gray-800 flex items-center justify-around z-40 relative">
-             <button onClick={() => { setActiveMobileTab('studio'); }} className={`flex flex-col items-center gap-1 ${activeMobileTab === 'studio' ? 'text-brand-500' : 'text-gray-500'}`}>
-                 <Layout size={20} />
-                 <span className="text-[10px] font-bold">Studio</span>
-             </button>
-             <button onClick={() => { setActiveMobileTab('media'); }} className={`flex flex-col items-center gap-1 ${activeMobileTab === 'media' ? 'text-brand-500' : 'text-gray-500'}`}>
-                 <ImageIcon size={20} />
-                 <span className="text-[10px] font-bold">Media</span>
-             </button>
-             <button onClick={() => { setActiveMobileTab('destinations'); }} className={`flex flex-col items-center gap-1 ${activeMobileTab === 'destinations' ? 'text-brand-500' : 'text-gray-500'}`}>
-                 <Globe size={20} />
-                 <span className="text-[10px] font-bold">Destinations</span>
-             </button>
-         </nav>
-      </main>
+                {/* Bottom Row Layouts */}
+                <div className="flex items-center justify-center md:justify-start overflow-x-auto pb-2 md:pb-0">
+                    <LayoutSelector currentLayout={layout} onSelect={setLayout} />
+                </div>
+            </div>
+        </main>
 
-      {/* --- DESKTOP RIGHT SIDEBAR --- */}
-      <aside className="hidden md:flex w-80 bg-dark-900 border-l border-gray-800 flex-col overflow-hidden shrink-0">
-          <NotificationPanel config={notificationConfig} onUpdate={setNotificationConfig} />
-          <div className="flex-1 overflow-y-auto p-4">
-              <DestinationManager 
-                destinations={destinations}
-                onAddDestination={(d) => setDestinations([...destinations, d])}
-                onRemoveDestination={(id) => setDestinations(destinations.filter(d => d.id !== id))}
-                onToggleDestination={(id) => setDestinations(destinations.map(d => d.id === id ? {...d, isEnabled: !d.isEnabled} : d))}
-                isStreaming={appState.isStreaming}
+        {/* RIGHT SIDEBAR (Media) - Desktop */}
+        <aside className={`w-80 bg-dark-900 border-l border-gray-800 flex-col z-10 ${activeMobileTab === 'media' ? 'flex absolute inset-0 md:static w-full' : 'hidden md:flex'}`}>
+            <div className="p-3 border-b border-gray-800 flex justify-between items-center">
+                 <h2 className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><ImageIcon size={14}/> Media Assets</h2>
+                 <button onClick={() => setIsCloudModalOpen(true)} className="text-xs bg-dark-800 hover:bg-gray-700 px-2 py-1 rounded text-brand-400 flex items-center gap-1 border border-brand-500/30">
+                     <Cloud size={12}/> Import
+                 </button>
+            </div>
+            <MediaBin 
+                assets={mediaAssets}
+                activeAssets={{ image: activeImageId, video: activeVideoId, audio: activeAudioId }}
+                onUpload={handleUpload}
+                onDelete={handleDeleteAsset}
+                onToggleAsset={handleToggleAsset}
             />
-          </div>
-      </aside>
+        </aside>
+      </div>
 
+      {/* MOBILE NAV BOTTOM */}
+      <nav className="md:hidden h-16 bg-dark-900 border-t border-gray-800 flex justify-around items-center px-2 z-50">
+          <button onClick={() => setActiveMobileTab('destinations')} className={`flex flex-col items-center gap-1 p-2 ${activeMobileTab === 'destinations' ? 'text-brand-400' : 'text-gray-500'}`}>
+              <Globe size={20} />
+              <span className="text-[10px]">Destinations</span>
+          </button>
+          <button onClick={() => setActiveMobileTab('studio')} className={`flex flex-col items-center gap-1 p-2 ${activeMobileTab === 'studio' ? 'text-brand-400' : 'text-gray-500'}`}>
+              <Layout size={20} />
+              <span className="text-[10px]">Studio</span>
+          </button>
+          <button onClick={() => setActiveMobileTab('media')} className={`flex flex-col items-center gap-1 p-2 ${activeMobileTab === 'media' ? 'text-brand-400' : 'text-gray-500'}`}>
+              <ImageIcon size={20} />
+              <span className="text-[10px]">Media</span>
+          </button>
+      </nav>
+
+      {/* MODALS */}
+      <CloudImportModal 
+         isOpen={isCloudModalOpen}
+         onClose={() => setIsCloudModalOpen(false)}
+         onImport={handleCloudImport}
+      />
     </div>
   );
 };

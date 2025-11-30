@@ -73,7 +73,7 @@ export interface AudioMixerState {
 }
 
 // Auth & Billing Types
-export type UserPlan = 'free_trial' | 'pro' | 'admin';
+export type UserPlan = 'always_free' | 'free_trial' | 'pro' | 'business' | 'admin';
 
 export interface User {
   id: string;

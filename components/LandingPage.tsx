@@ -4,7 +4,7 @@ import { User } from '../types';
 import AuthModal from './AuthModal';
 import { 
   Zap, Globe, Cpu, Smartphone, Layout, Mic, 
-  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle, X, Check 
+  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle, X, Check, Cloud, Database 
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -41,7 +41,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#cloud" className="hover:text-white transition-colors">Cloud VM</a>
+            <a href="#cloud" className="hover:text-white transition-colors">Cloud Import</a>
             <a href="#compare" className="hover:text-white transition-colors">Compare</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
           </div>
@@ -68,11 +68,11 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             <Sparkles size={12} /> The Future of Live Streaming
           </div>
           <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight mb-6 leading-tight">
-            Stream Everywhere. <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-purple-400 to-brand-400 animate-gradient">From Anywhere.</span>
+            Stream Directly From Cloud. <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 via-purple-400 to-brand-400 animate-gradient">Zero Data Usage.</span>
           </h1>
           <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
-            The professional browser-based studio that creates a Virtual Machine in the cloud to handle your heavy lifting. Save mobile data while broadcasting 4K streams.
+            Link your Google Drive, Dropbox, or S3 files and broadcast 4K video directly from the cloud. Your phone is just the remote.
           </p>
           
           <div className="flex flex-col md:flex-row items-center justify-center gap-4">
@@ -138,9 +138,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                desc="Let our Gemini-powered AI generate viral titles, descriptions, and hashtags for your stream."
              />
              <FeatureCard 
-               icon={<Server className="text-green-400" size={32}/>}
-               title="Cloud VM Engine"
-               desc="Offload processing to our cloud servers. Stream 1080p video using 90% less data on your device."
+               icon={<Cloud className="text-green-400" size={32}/>}
+               title="Direct Cloud Import"
+               desc="Stream directly from Google Drive, Dropbox, OneDrive, or S3. Link a signed-in account to verify and go live."
              />
              <FeatureCard 
                icon={<Mic className="text-pink-400" size={32}/>}
@@ -163,27 +163,38 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                 <div className="inline-block bg-green-500/10 text-green-400 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wider">
                     Game Changer
                 </div>
-                <h2 className="text-4xl md:text-5xl font-bold mb-6">Low Data Mode. <br/>High Quality Stream.</h2>
-                <p className="text-gray-400 text-lg mb-8 leading-relaxed">
-                    Streaming directly from your phone burns battery and gigabytes of data. 
-                    With <strong>Cloud VM</strong>, your phone becomes a remote control. 
-                    We pull your video files directly from the cloud and stream them at high bitrate, 
-                    while your phone sends tiny commands.
+                <h2 className="text-4xl md:text-5xl font-bold mb-6">Direct Cloud Streaming. <br/>Any Source.</h2>
+                <p className="text-gray-400 text-lg mb-6 leading-relaxed">
+                    Forget about bandwidth limitations. Connect directly to your files on 
+                    <span className="text-white font-bold"> Google Drive, Dropbox, OneDrive, Box, Google Cloud, or AWS S3</span>.
                 </p>
+                
+                <div className="mb-8 p-5 bg-dark-800 rounded-xl border border-gray-700 shadow-inner">
+                    <div className="flex items-start gap-3">
+                        <CheckCircle className="text-brand-500 mt-1 shrink-0" size={20} />
+                        <div>
+                            <h4 className="text-white font-bold mb-1">Secure Link Verification</h4>
+                            <p className="text-gray-400 text-sm leading-relaxed">
+                                Simply provide a link from an account you are actively signed into (to verify ownership). 
+                                We securely pull the video stream and broadcast it at full quality, bypassing your local device entirely.
+                            </p>
+                        </div>
+                    </div>
+                </div>
                 
                 <div className="space-y-4">
                     <div className="flex items-center gap-4 bg-dark-800 p-4 rounded-xl border border-gray-800">
                         <Smartphone className="text-gray-500" size={32}/>
                         <div>
-                            <div className="text-sm font-bold text-gray-500">Traditional Mobile Stream</div>
-                            <div className="text-xl font-bold text-white">4.5 GB <span className="text-sm font-normal text-gray-500">/ hour</span></div>
+                            <div className="text-sm font-bold text-gray-500">Traditional Upload</div>
+                            <div className="text-xl font-bold text-white">High Data Usage <span className="text-sm font-normal text-gray-500">(Phone Battery Drain)</span></div>
                         </div>
                     </div>
                     <div className="flex items-center gap-4 bg-brand-900/20 p-4 rounded-xl border border-brand-500/30">
-                        <Server className="text-brand-400" size={32}/>
+                        <Cloud className="text-brand-400" size={32}/>
                         <div>
-                            <div className="text-sm font-bold text-brand-300">StreamHub Cloud VM</div>
-                            <div className="text-xl font-bold text-white">0.05 GB <span className="text-sm font-normal text-gray-500">/ hour</span></div>
+                            <div className="text-sm font-bold text-brand-300">Direct Cloud Stream</div>
+                            <div className="text-xl font-bold text-white">Zero Data Usage <span className="text-sm font-normal text-gray-500">(Cloud-to-Cloud)</span></div>
                         </div>
                     </div>
                 </div>
@@ -199,8 +210,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     {/* Visual representation of data flow */}
                     <div className="flex justify-between items-center mb-12">
                          <div className="flex flex-col items-center gap-2">
-                             <Smartphone size={40} className="text-gray-400"/>
-                             <span className="text-xs text-gray-500">You</span>
+                             <Database size={40} className="text-gray-400"/>
+                             <span className="text-xs text-gray-500">Storage</span>
                          </div>
                          <div className="flex-1 h-1 bg-gray-700 mx-4 relative overflow-hidden">
                              <div className="absolute inset-y-0 left-0 w-full bg-brand-500/50 animate-[shimmer_2s_infinite]"></div>
@@ -211,7 +222,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                                 <Server size={48} className="text-brand-400"/>
                                 <Cpu size={20} className="absolute -top-2 -right-2 text-white bg-brand-600 rounded-full p-1"/>
                              </div>
-                             <span className="text-xs font-bold text-brand-400">Virtual Machine</span>
+                             <span className="text-xs font-bold text-brand-400">VM Engine</span>
                          </div>
                          <div className="flex-1 h-2 bg-gray-700 mx-4 relative overflow-hidden rounded-full">
                              <div className="absolute inset-y-0 left-0 w-full bg-green-500 animate-[shimmer_0.5s_infinite]"></div>
@@ -263,7 +274,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                             <td className="p-6 text-gray-400">$39.00</td>
                         </tr>
                         <tr>
-                            <td className="p-6 font-medium text-white">Cloud Streaming (VM)</td>
+                            <td className="p-6 font-medium text-white">Direct Cloud Streaming (S3/Drive)</td>
                             <td className="p-6 bg-brand-900/10"><CheckCircle className="text-green-500 inline mr-2"/> Included</td>
                             <td className="p-6"><X className="text-red-500 inline mr-2"/> No</td>
                             <td className="p-6"><CheckCircle className="text-green-500 inline mr-2"/> Pre-recorded only</td>
@@ -295,42 +306,57 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       {/* Pricing Section */}
       <section id="pricing" className="py-24 px-6 relative">
         <div className="absolute inset-0 bg-gradient-to-t from-brand-900/20 to-transparent pointer-events-none"></div>
-        <div className="max-w-4xl mx-auto text-center relative z-10">
-          <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
-          <p className="text-gray-400 text-lg mb-12">No hidden fees. Cancel anytime.</p>
+        <div className="max-w-6xl mx-auto text-center relative z-10">
+          <h2 className="text-4xl font-bold mb-4">Simple, Scalable Pricing</h2>
+          <p className="text-gray-400 text-lg mb-12">Start free, upgrade for power.</p>
           
-          <div className="grid md:grid-cols-2 gap-8 items-stretch">
-             {/* Free Trial Card */}
+          <div className="grid md:grid-cols-3 gap-8 items-stretch">
+             {/* Always Free Card */}
              <div className="bg-dark-800 rounded-3xl p-8 border border-gray-700 flex flex-col items-center hover:border-gray-500 transition-colors">
-                 <h3 className="text-xl font-bold text-gray-300 mb-2">7-Day Free Trial</h3>
+                 <h3 className="text-xl font-bold text-gray-300 mb-2">Always Free</h3>
                  <div className="text-4xl font-bold text-white mb-6">$0</div>
                  <ul className="space-y-4 text-left w-full mb-8 text-gray-400 text-sm">
                      <li className="flex gap-2"><Check size={16} className="text-white"/> Full Studio Access</li>
-                     <li className="flex gap-2"><Check size={16} className="text-white"/> 5 Hours Cloud Streaming</li>
-                     <li className="flex gap-2"><Check size={16} className="text-white"/> Watermark Free</li>
-                     <li className="flex gap-2"><Check size={16} className="text-white"/> All 30+ Platforms</li>
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> 1 Streaming Destination</li>
+                     <li className="flex gap-2"><X size={16} className="text-red-500"/> No Cloud VM Access</li>
+                     <li className="flex gap-2"><X size={16} className="text-red-500"/> StreamHub Watermark</li>
                  </ul>
                  <button onClick={() => handleOpenAuth('signup')} className="mt-auto w-full py-3 rounded-xl border border-gray-600 text-white font-bold hover:bg-gray-700 transition-colors">
-                     Start Trial
+                     Get Started
                  </button>
              </div>
 
              {/* Pro Card */}
-             <div className="bg-gradient-to-b from-brand-900 to-dark-900 rounded-3xl p-8 border border-brand-500 flex flex-col items-center shadow-2xl relative overflow-hidden">
+             <div className="bg-gradient-to-b from-brand-900 to-dark-900 rounded-3xl p-8 border border-brand-500 flex flex-col items-center shadow-2xl relative overflow-hidden transform md:-translate-y-4">
                  <div className="absolute top-0 inset-x-0 h-1 bg-brand-400 shadow-[0_0_20px_rgba(56,189,248,0.5)]"></div>
+                 <div className="bg-brand-500 text-xs font-bold text-white px-3 py-1 rounded-full mb-3 uppercase tracking-wider">Most Popular</div>
                  <h3 className="text-xl font-bold text-brand-400 mb-2">Pro Plan</h3>
                  <div className="text-5xl font-bold text-white mb-2">$29.99<span className="text-lg text-gray-400 font-normal">/mo</span></div>
-                 <p className="text-gray-400 text-sm mb-6">Everything you need to grow.</p>
+                 <p className="text-gray-400 text-sm mb-6">Everything for serious creators.</p>
                  
                  <ul className="space-y-4 text-left w-full mb-8 text-gray-200 text-sm">
-                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> <strong>Unlimited</strong> Multi-Streaming</li>
-                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> <strong>5 Hours</strong> Cloud VM Usage /mo</li>
-                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> 1080p Full HD Streaming</li>
-                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> Priority Support</li>
-                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> Custom RTMP Destinations</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> <strong>Unlimited</strong> Destinations</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> <strong>5 Hours</strong> Cloud VM Usage</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> No Watermark</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> 1080p Full HD</li>
                  </ul>
                  <button onClick={() => handleOpenAuth('signup')} className="mt-auto w-full py-4 rounded-xl bg-brand-600 text-white font-bold shadow-lg shadow-brand-500/20 hover:scale-105 transition-transform">
-                     Get Pro Access
+                     Start 7-Day Trial
+                 </button>
+             </div>
+
+             {/* Business Card */}
+             <div className="bg-dark-800 rounded-3xl p-8 border border-purple-500/30 flex flex-col items-center hover:border-purple-500 transition-colors">
+                 <h3 className="text-xl font-bold text-purple-400 mb-2">Business</h3>
+                 <div className="text-4xl font-bold text-white mb-6">$59.99<span className="text-lg text-gray-400 font-normal">/mo</span></div>
+                 <ul className="space-y-4 text-left w-full mb-8 text-gray-400 text-sm">
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> <strong>Unlimited</strong> Destinations</li>
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> <strong>50 Hours</strong> Cloud VM Usage</li>
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> Priority 24/7 Support</li>
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> Team Roles (Coming Soon)</li>
+                 </ul>
+                 <button onClick={() => handleOpenAuth('signup')} className="mt-auto w-full py-3 rounded-xl border border-purple-500/50 text-white font-bold hover:bg-purple-900/20 transition-colors">
+                     Get Business
                  </button>
              </div>
           </div>

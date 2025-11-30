@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserPlan } from '../types';
-import { X, Lock, Mail, User as UserIcon, CheckCircle, ShieldAlert } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon, CheckCircle, ShieldAlert, Zap } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -25,11 +25,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
     setError(null);
     setLoading(true);
 
-    // Simulate API Latency
     setTimeout(() => {
       setLoading(false);
 
-      // 1. ADMIN BYPASS CHECK
       if (email.toLowerCase() === 'admin@streamhub.com' && password === 'password') {
         const adminUser: User = {
           id: 'admin-001',
@@ -43,14 +41,29 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
         return;
       }
 
-      // 2. Signup Flow
-      if (mode === 'signup') {
+      // Login Flow
+      if (mode === 'login') {
+         if (email && password) {
+             const returningUser: User = {
+                 id: 'user-returning',
+                 name: 'Streamer Pro',
+                 email: email,
+                 plan: 'pro',
+                 cloudHoursUsed: 1.2,
+                 cloudHoursLimit: 5
+             };
+             onAuthSuccess(returningUser);
+         } else {
+             setError("Invalid credentials");
+         }
+      } 
+      // Signup Flow (Defaults to Pro Trial)
+      else {
         if (!email || !password || !name) {
           setError("All fields are required.");
           return;
         }
         
-        // Create 7-Day Free Trial User
         const trialEndDate = new Date();
         trialEndDate.setDate(trialEndDate.getDate() + 7);
 
@@ -61,29 +74,31 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
           plan: 'free_trial',
           trialEndDate: trialEndDate.toISOString(),
           cloudHoursUsed: 0,
-          cloudHoursLimit: 5 // 5 Hours included in trial
+          cloudHoursLimit: 5
         };
         onAuthSuccess(newUser);
-      } 
-      
-      // 3. Login Flow (Mock)
-      else {
-         if (email && password) {
-             // Mock returning user
-             const returningUser: User = {
-                 id: 'user-returning',
-                 name: 'Streamer Pro',
-                 email: email,
-                 plan: 'pro',
-                 cloudHoursUsed: 1.2,
-                 cloudHoursLimit: 50
-             };
-             onAuthSuccess(returningUser);
-         } else {
-             setError("Invalid credentials");
-         }
       }
     }, 1000);
+  };
+
+  // Helper for Demo Buttons
+  const quickLogin = (plan: UserPlan) => {
+      const limits = {
+          'always_free': 0,
+          'free_trial': 5,
+          'pro': 5,
+          'business': 50,
+          'admin': Infinity
+      };
+      const user: User = {
+          id: `user-${plan}`,
+          name: `${plan.charAt(0).toUpperCase() + plan.slice(1)} User`,
+          email: `${plan}@example.com`,
+          plan: plan,
+          cloudHoursUsed: 0,
+          cloudHoursLimit: limits[plan]
+      };
+      onAuthSuccess(user);
   };
 
   return (
@@ -100,7 +115,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
              </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-4">
+        <form onSubmit={handleSubmit} className="px-8 pb-4 space-y-4">
             {mode === 'signup' && (
                 <div className="relative">
                     <UserIcon className="absolute left-3 top-3 text-gray-500" size={18} />
@@ -147,6 +162,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
             </button>
         </form>
 
+        <div className="px-8 pb-4">
+             <div className="text-[10px] text-center text-gray-500 uppercase font-bold mb-2 tracking-widest">Dev / Demo Shortcuts</div>
+             <div className="grid grid-cols-3 gap-2">
+                 <button onClick={() => quickLogin('always_free')} className="text-xs bg-dark-700 hover:bg-dark-600 p-2 rounded text-gray-300">Free Tier</button>
+                 <button onClick={() => quickLogin('pro')} className="text-xs bg-brand-900/40 hover:bg-brand-900 p-2 rounded text-brand-400">Pro Plan</button>
+                 <button onClick={() => quickLogin('business')} className="text-xs bg-purple-900/40 hover:bg-purple-900 p-2 rounded text-purple-400">Business</button>
+             </div>
+        </div>
+
         <div className="p-4 bg-dark-900 border-t border-gray-800 text-center">
             {mode === 'login' ? (
                 <p className="text-sm text-gray-400">
@@ -158,16 +182,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
                 </p>
             )}
         </div>
-
-        {/* Demo Hint */}
-        <div className="absolute bottom-1 right-2 opacity-10 hover:opacity-100 transition-opacity">
-            <div className="text-[10px] text-gray-500 flex flex-col items-end">
-                <span className="flex items-center gap-1 font-bold"><ShieldAlert size={10}/> Admin Bypass</span>
-                <span>u: admin@streamhub.com</span>
-                <span>p: password</span>
-            </div>
-        </div>
-
       </div>
     </div>
   );

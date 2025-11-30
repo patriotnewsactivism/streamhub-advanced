@@ -10,6 +10,7 @@ interface CanvasCompositorProps {
   activeVideoUrl: string | null; // Main Video File
   backgroundUrl: string | null; // Custom Template Background
   isLowDataMode?: boolean; // NEW: If true, stop rendering to save battery/cpu
+  showWatermark?: boolean; // NEW: Render watermark if true
 }
 
 export interface CanvasRef {
@@ -24,12 +25,12 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
   activeMediaUrl,
   activeVideoUrl,
   backgroundUrl,
-  isLowDataMode = false
+  isLowDataMode = false,
+  showWatermark = false
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Media Elements
-  // We attach crossOrigin="anonymous" to allow AudioContext to capture them without CORS issues if possible
   const camVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
   const screenVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
   const mediaVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
@@ -38,16 +39,16 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
   const bgImgRef = useRef<HTMLImageElement>(new Image());
 
   // PIP State
-  const [pipPos, setPipPos] = useState({ x: 0, y: 0 }); // Will be set initially in draw loop if needed, but we track overrides here
+  const [pipPos, setPipPos] = useState({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
-  const pipRectRef = useRef({ x: 0, y: 0, w: 0, h: 0 }); // Track where PIP is drawn for hit testing
+  const pipRectRef = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
   // Initialize video elements configuration
   useEffect(() => {
     [camVideoRef, screenVideoRef, mediaVideoRef].forEach(ref => {
         ref.current.autoplay = true;
-        ref.current.muted = true; // IMPORTANT: Muted in DOM so we don't hear double audio. We will capture stream in App.tsx for mixing.
+        ref.current.muted = true; 
         ref.current.playsInline = true;
         ref.current.crossOrigin = "anonymous";
     });
@@ -66,7 +67,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
        return;
     }
 
-    // If it's a MediaStream
     if (typeof streamOrUrl !== 'string') {
         if (videoRef.srcObject !== streamOrUrl) {
             videoRef.srcObject = streamOrUrl;
@@ -75,7 +75,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
             });
         }
     } 
-    // If it's a URL (string)
     else {
         if (videoRef.getAttribute('src') !== streamOrUrl) {
             videoRef.src = streamOrUrl;
@@ -103,7 +102,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
     }
   }, [screenStream, isLowDataMode]);
 
-  // Handle Uploaded Video Asset
   useEffect(() => {
       if (isLowDataMode) {
         safePlay(mediaVideoRef.current, null);
@@ -112,7 +110,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
       }
   }, [activeVideoUrl, isLowDataMode]);
 
-  // Handle Images
   useEffect(() => {
     if (activeMediaUrl) {
         overlayImgRef.current.crossOrigin = "anonymous";
@@ -148,13 +145,11 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
       
-      // Calculate mouse pos relative to canvas resolution (1280x720)
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
       const mouseX = (clientX - rect.left) * scaleX;
       const mouseY = (clientY - rect.top) * scaleY;
 
-      // Check hit
       const p = pipRectRef.current;
       if (mouseX >= p.x && mouseX <= p.x + p.w && mouseY >= p.y && mouseY <= p.y + p.h) {
           isDraggingRef.current = true;
@@ -180,7 +175,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
       const newX = mouseX - dragOffsetRef.current.x;
       const newY = mouseY - dragOffsetRef.current.y;
 
-      // Clamp
       const maxX = canvas.width - pipRectRef.current.w;
       const maxY = canvas.height - pipRectRef.current.h;
       
@@ -201,11 +195,9 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set resolution to 720p internally for consistency
     canvas.width = 1280;
     canvas.height = 720;
 
-    // Initial PIP Position (Bottom Right)
     if (pipPos.x === 0 && pipPos.y === 0) {
         setPipPos({ x: canvas.width - (canvas.width * 0.25) - 30, y: canvas.height - (canvas.height * 0.25) - 30 });
     }
@@ -237,7 +229,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
           ctx.fillRect(0, 0, w, h);
       }
 
-      // Helper to draw video preserving aspect ratio (cover)
       const drawCover = (video: HTMLVideoElement, x: number, y: number, targetW: number, targetH: number) => {
         if (video.readyState < 2 && video !== mediaVideoRef.current) return;
         if (video === mediaVideoRef.current && video.readyState < 2) return; 
@@ -310,14 +301,11 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
 
         const pipW = w * 0.25;
         const pipH = h * 0.25;
-        // Use state position
         const pipX = pipPos.x;
         const pipY = pipPos.y;
         
-        // Update ref for hit testing
         pipRectRef.current = { x: pipX, y: pipY, w: pipW, h: pipH };
 
-        // Shadow/Border
         ctx.shadowColor = "rgba(0,0,0,0.5)";
         ctx.shadowBlur = 10;
         
@@ -354,6 +342,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
           drawCover(camVideoRef.current, camX, camY, camW, camH);
       }
 
+      // Draw Overlay Image
       if (activeMediaUrl && overlayImgRef.current.complete && overlayImgRef.current.naturalWidth > 0) {
           if (overlayImgRef.current.naturalWidth > 500) {
               ctx.drawImage(overlayImgRef.current, 0, 0, w, h);
@@ -361,6 +350,19 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
               const logoSize = 120;
               ctx.drawImage(overlayImgRef.current, w - logoSize - 30, 30, logoSize, logoSize);
           }
+      }
+
+      // Draw Watermark (New)
+      if (showWatermark) {
+          ctx.save();
+          ctx.font = 'bold 24px sans-serif';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'top';
+          ctx.shadowColor = 'rgba(0,0,0,0.8)';
+          ctx.shadowBlur = 4;
+          ctx.fillText('Powered by StreamHub Pro', w - 20, 20);
+          ctx.restore();
       }
 
       animationId = requestAnimationFrame(draw);
@@ -371,7 +373,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [layout, cameraStream, screenStream, activeMediaUrl, activeVideoUrl, backgroundUrl, isLowDataMode, pipPos]);
+  }, [layout, cameraStream, screenStream, activeMediaUrl, activeVideoUrl, backgroundUrl, isLowDataMode, pipPos, showWatermark]);
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-black aspect-video rounded-lg overflow-hidden border border-gray-800 shadow-2xl relative">
