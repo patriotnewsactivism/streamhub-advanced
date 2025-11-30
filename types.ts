@@ -71,3 +71,16 @@ export interface AudioMixerState {
   musicVolume: number;
   videoVolume: number;
 }
+
+// Auth & Billing Types
+export type UserPlan = 'free_trial' | 'pro' | 'admin';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  plan: UserPlan;
+  trialEndDate?: string; // ISO Date string
+  cloudHoursUsed: number;
+  cloudHoursLimit: number;
+}

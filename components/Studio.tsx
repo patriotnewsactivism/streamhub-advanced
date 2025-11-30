@@ -8,7 +8,8 @@ import {
   MediaType,
   NotificationConfig,
   StreamMode,
-  AudioMixerState
+  AudioMixerState,
+  User
 } from '../types';
 import CanvasCompositor, { CanvasRef } from './CanvasCompositor';
 import DestinationManager from './DestinationManager';
@@ -19,13 +20,14 @@ import NotificationPanel from './NotificationPanel';
 import CloudVMManager from './CloudVMManager';
 import AudioMixer from './AudioMixer';
 import { generateStreamMetadata } from '../services/geminiService';
-import { Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon, Globe, Settings, Disc, Download, LogOut } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon, Globe, Settings, Disc, Download, LogOut, User as UserIcon } from 'lucide-react';
 
 interface StudioProps {
     onLogout: () => void;
+    user: User;
 }
 
-const Studio: React.FC<StudioProps> = ({ onLogout }) => {
+const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
   // --- State ---
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [streamMode, setStreamMode] = useState<StreamMode>('local');
@@ -488,6 +490,26 @@ const Studio: React.FC<StudioProps> = ({ onLogout }) => {
                 <button onClick={onLogout} className="text-gray-500 hover:text-white" title="Logout"><LogOut size={16}/></button>
             </div>
             
+            {/* User Profile Status */}
+            <div className="p-4 border-b border-gray-800">
+                 <div className="flex items-center gap-3 mb-3">
+                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-brand-500 flex items-center justify-center font-bold text-white shadow-lg">
+                         {user.name.charAt(0)}
+                     </div>
+                     <div className="min-w-0">
+                         <div className="text-sm font-bold text-white truncate">{user.name}</div>
+                         <div className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
+                             {user.plan === 'admin' ? 'Master Admin' : user.plan === 'pro' ? 'Pro Plan' : 'Free Trial'}
+                         </div>
+                     </div>
+                 </div>
+                 {user.plan === 'free_trial' && (
+                     <div className="bg-brand-900/30 border border-brand-500/30 rounded px-2 py-1 text-xs text-brand-300 text-center">
+                         Trial expires in 7 days
+                     </div>
+                 )}
+            </div>
+
             <div className="p-4 border-b border-gray-800">
                  <div className="flex bg-dark-900 p-1 rounded-lg border border-gray-700">
                     <button onClick={() => setStreamMode('local')} className={`flex-1 py-1.5 text-xs font-bold rounded flex items-center justify-center gap-2 ${streamMode === 'local' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
@@ -539,7 +561,12 @@ const Studio: React.FC<StudioProps> = ({ onLogout }) => {
          {/* Content Area */}
          <div className="flex-1 flex flex-col md:p-6 overflow-hidden relative">
             {streamMode === 'cloud_vm' ? (
-                <CloudVMManager isStreaming={appState.isStreaming} onStartCloudStream={(url) => { console.log("Cloud URL:", url); toggleStream(); }} onStopCloudStream={toggleStream} />
+                <CloudVMManager 
+                    isStreaming={appState.isStreaming} 
+                    onStartCloudStream={(url) => { console.log("Cloud URL:", url); toggleStream(); }} 
+                    onStopCloudStream={toggleStream} 
+                    user={user}
+                />
             ) : (
                 <>
                     {/* Canvas Stage */}

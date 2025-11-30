@@ -1,22 +1,39 @@
 
-import React from 'react';
+import React, { useState } from 'react';
+import { User } from '../types';
+import AuthModal from './AuthModal';
 import { 
   Zap, Globe, Cpu, Smartphone, Layout, Mic, 
-  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle 
+  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle, X, Check 
 } from 'lucide-react';
 
 interface LandingPageProps {
-  onLogin: () => void;
+  onLogin: (user: User) => void;
 }
 
 const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('signup');
+
+  const handleOpenAuth = (mode: 'login' | 'signup') => {
+      setAuthMode(mode);
+      setIsAuthOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-dark-900 text-white font-sans overflow-x-hidden selection:bg-brand-500 selection:text-white">
       
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+        initialMode={authMode}
+        onAuthSuccess={onLogin}
+      />
+
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900/80 backdrop-blur-md border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
             <div className="bg-gradient-to-br from-brand-400 to-brand-600 p-2 rounded-lg shadow-lg shadow-brand-500/20">
               <Zap size={24} className="text-white" fill="currentColor" />
             </div>
@@ -25,12 +42,13 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
             <a href="#cloud" className="hover:text-white transition-colors">Cloud VM</a>
+            <a href="#compare" className="hover:text-white transition-colors">Compare</a>
             <a href="#pricing" className="hover:text-white transition-colors">Pricing</a>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={onLogin} className="text-sm font-bold text-gray-300 hover:text-white transition-colors">Log In</button>
+            <button onClick={() => handleOpenAuth('login')} className="text-sm font-bold text-gray-300 hover:text-white transition-colors">Log In</button>
             <button 
-              onClick={onLogin} 
+              onClick={() => handleOpenAuth('signup')} 
               className="bg-brand-600 hover:bg-brand-500 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-lg shadow-brand-600/20 transition-all hover:scale-105 active:scale-95"
             >
               Get Started
@@ -59,26 +77,27 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           
           <div className="flex flex-col md:flex-row items-center justify-center gap-4">
             <button 
-              onClick={onLogin} 
+              onClick={() => handleOpenAuth('signup')} 
               className="w-full md:w-auto px-8 py-4 bg-white text-dark-900 rounded-full font-bold text-lg flex items-center justify-center gap-2 hover:bg-gray-100 transition-all shadow-xl hover:shadow-2xl"
             >
-              Start Streaming Free <ArrowRight size={20} />
+              Start Free Trial <ArrowRight size={20} />
             </button>
-            <button className="w-full md:w-auto px-8 py-4 bg-dark-800 border border-gray-700 text-white rounded-full font-bold text-lg flex items-center justify-center gap-2 hover:bg-dark-700 transition-all">
+            <button onClick={() => window.open('https://youtube.com', '_blank')} className="w-full md:w-auto px-8 py-4 bg-dark-800 border border-gray-700 text-white rounded-full font-bold text-lg flex items-center justify-center gap-2 hover:bg-dark-700 transition-all">
               <Play size={20} fill="currentColor" /> Watch Demo
             </button>
           </div>
+          <p className="mt-4 text-sm text-gray-500">7-Day Free Trial • No Credit Card Required for Signup</p>
         </div>
       </section>
 
       {/* Interface Preview */}
       <section className="px-4 pb-20 relative z-20">
         <div className="max-w-6xl mx-auto rounded-xl border border-gray-800 bg-dark-800/50 backdrop-blur-sm p-2 shadow-2xl">
-          <div className="rounded-lg overflow-hidden relative aspect-video bg-black flex items-center justify-center group">
+          <div className="rounded-lg overflow-hidden relative aspect-video bg-black flex items-center justify-center group border border-gray-800">
              {/* Mock UI */}
              <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1626379953822-baec19c3accd?q=80&w=2070&auto=format&fit=crop')] bg-cover bg-center opacity-40"></div>
              <div className="absolute inset-0 flex items-center justify-center">
-                 <button onClick={onLogin} className="w-20 h-20 bg-brand-600 rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform cursor-pointer">
+                 <button onClick={() => handleOpenAuth('signup')} className="w-20 h-20 bg-brand-600 rounded-full flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform cursor-pointer">
                     <Play size={32} fill="white" className="ml-1" />
                  </button>
              </div>
@@ -88,13 +107,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                  <div>
                      <div className="text-xs text-gray-400 uppercase font-bold">Cloud VM</div>
                      <div className="text-sm font-bold text-white">Active • 6000 kbps</div>
-                 </div>
-             </div>
-             <div className="absolute bottom-8 right-8 bg-dark-900/90 backdrop-blur border border-gray-700 p-4 rounded-xl shadow-xl flex items-center gap-3 animate-bounce-slow delay-75">
-                 <div className="bg-red-500/20 p-2 rounded-lg text-red-500"><Globe size={20}/></div>
-                 <div>
-                     <div className="text-xs text-gray-400 uppercase font-bold">Live On</div>
-                     <div className="text-sm font-bold text-white">YouTube + Twitch</div>
                  </div>
              </div>
           </div>
@@ -145,7 +157,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       </section>
 
       {/* Cloud Spotlight Section */}
-      <section id="cloud" className="py-24 relative overflow-hidden">
+      <section id="cloud" className="py-24 relative overflow-hidden bg-gradient-to-br from-dark-900 via-dark-800 to-dark-900 border-y border-gray-800">
          <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
             <div className="order-2 md:order-1">
                 <div className="inline-block bg-green-500/10 text-green-400 text-xs font-bold px-3 py-1 rounded-full mb-4 uppercase tracking-wider">
@@ -225,24 +237,107 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
          </div>
       </section>
 
-      {/* CTA Footer */}
-      <section className="py-24 px-6 text-center border-t border-gray-800 bg-gradient-to-b from-dark-900 to-dark-800">
-        <div className="max-w-3xl mx-auto">
-          <h2 className="text-4xl font-bold mb-6">Ready to go live?</h2>
-          <p className="text-gray-400 text-lg mb-10">
-            Join thousands of creators who have switched to the smarter way to stream.
-          </p>
-          <button 
-            onClick={onLogin} 
-            className="px-10 py-5 bg-brand-600 hover:bg-brand-500 text-white rounded-full font-bold text-xl shadow-2xl hover:scale-105 transition-transform"
-          >
-            Create Free Account
-          </button>
-          <p className="mt-6 text-sm text-gray-500">No credit card required for local streaming.</p>
+      {/* Comparison Section */}
+      <section id="compare" className="py-24 bg-dark-900">
+         <div className="max-w-6xl mx-auto px-6">
+            <div className="text-center mb-16">
+                 <h2 className="text-3xl md:text-5xl font-bold mb-4">Compare & Conquer</h2>
+                 <p className="text-gray-400 text-lg">See why StreamHub Pro is the smart choice.</p>
+            </div>
+
+            <div className="overflow-x-auto rounded-2xl border border-gray-800 shadow-2xl">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="bg-dark-800 text-gray-400 text-sm uppercase tracking-wider">
+                            <th className="p-6 font-medium">Feature</th>
+                            <th className="p-6 font-bold text-white bg-brand-900/20 border-b-2 border-brand-500 w-1/4">StreamHub Pro</th>
+                            <th className="p-6 font-medium w-1/4">StreamYard (Basic)</th>
+                            <th className="p-6 font-medium w-1/4">OneStream (Standard)</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-800 bg-dark-800/50">
+                        <tr>
+                            <td className="p-6 font-medium text-white">Monthly Price</td>
+                            <td className="p-6 font-bold text-brand-400 text-xl bg-brand-900/10">$29.99</td>
+                            <td className="p-6 text-gray-400">$25.00</td>
+                            <td className="p-6 text-gray-400">$39.00</td>
+                        </tr>
+                        <tr>
+                            <td className="p-6 font-medium text-white">Cloud Streaming (VM)</td>
+                            <td className="p-6 bg-brand-900/10"><CheckCircle className="text-green-500 inline mr-2"/> Included</td>
+                            <td className="p-6"><X className="text-red-500 inline mr-2"/> No</td>
+                            <td className="p-6"><CheckCircle className="text-green-500 inline mr-2"/> Pre-recorded only</td>
+                        </tr>
+                        <tr>
+                            <td className="p-6 font-medium text-white">Multi-Destinations</td>
+                            <td className="p-6 bg-brand-900/10"><span className="font-bold text-white">Unlimited</span></td>
+                            <td className="p-6">3 Destinations</td>
+                            <td className="p-6">Social Media Only</td>
+                        </tr>
+                        <tr>
+                            <td className="p-6 font-medium text-white">AI Assistant (Gemini)</td>
+                            <td className="p-6 bg-brand-900/10"><CheckCircle className="text-green-500 inline mr-2"/> Yes</td>
+                            <td className="p-6"><X className="text-gray-600 inline mr-2"/> No</td>
+                            <td className="p-6"><X className="text-gray-600 inline mr-2"/> No</td>
+                        </tr>
+                        <tr>
+                            <td className="p-6 font-medium text-white">Custom RTMP</td>
+                            <td className="p-6 bg-brand-900/10"><CheckCircle className="text-green-500 inline mr-2"/> Yes</td>
+                            <td className="p-6"><CheckCircle className="text-green-500 inline mr-2"/> Yes</td>
+                            <td className="p-6"><CheckCircle className="text-green-500 inline mr-2"/> Yes</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+         </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="py-24 px-6 relative">
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-900/20 to-transparent pointer-events-none"></div>
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
+          <p className="text-gray-400 text-lg mb-12">No hidden fees. Cancel anytime.</p>
+          
+          <div className="grid md:grid-cols-2 gap-8 items-stretch">
+             {/* Free Trial Card */}
+             <div className="bg-dark-800 rounded-3xl p-8 border border-gray-700 flex flex-col items-center hover:border-gray-500 transition-colors">
+                 <h3 className="text-xl font-bold text-gray-300 mb-2">7-Day Free Trial</h3>
+                 <div className="text-4xl font-bold text-white mb-6">$0</div>
+                 <ul className="space-y-4 text-left w-full mb-8 text-gray-400 text-sm">
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> Full Studio Access</li>
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> 5 Hours Cloud Streaming</li>
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> Watermark Free</li>
+                     <li className="flex gap-2"><Check size={16} className="text-white"/> All 30+ Platforms</li>
+                 </ul>
+                 <button onClick={() => handleOpenAuth('signup')} className="mt-auto w-full py-3 rounded-xl border border-gray-600 text-white font-bold hover:bg-gray-700 transition-colors">
+                     Start Trial
+                 </button>
+             </div>
+
+             {/* Pro Card */}
+             <div className="bg-gradient-to-b from-brand-900 to-dark-900 rounded-3xl p-8 border border-brand-500 flex flex-col items-center shadow-2xl relative overflow-hidden">
+                 <div className="absolute top-0 inset-x-0 h-1 bg-brand-400 shadow-[0_0_20px_rgba(56,189,248,0.5)]"></div>
+                 <h3 className="text-xl font-bold text-brand-400 mb-2">Pro Plan</h3>
+                 <div className="text-5xl font-bold text-white mb-2">$29.99<span className="text-lg text-gray-400 font-normal">/mo</span></div>
+                 <p className="text-gray-400 text-sm mb-6">Everything you need to grow.</p>
+                 
+                 <ul className="space-y-4 text-left w-full mb-8 text-gray-200 text-sm">
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> <strong>Unlimited</strong> Multi-Streaming</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> <strong>5 Hours</strong> Cloud VM Usage /mo</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> 1080p Full HD Streaming</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> Priority Support</li>
+                     <li className="flex gap-2"><CheckCircle size={16} className="text-brand-400"/> Custom RTMP Destinations</li>
+                 </ul>
+                 <button onClick={() => handleOpenAuth('signup')} className="mt-auto w-full py-4 rounded-xl bg-brand-600 text-white font-bold shadow-lg shadow-brand-500/20 hover:scale-105 transition-transform">
+                     Get Pro Access
+                 </button>
+             </div>
+          </div>
         </div>
       </section>
-      
-      <footer className="py-8 text-center text-gray-600 text-sm border-t border-gray-800/50">
+
+      <footer className="py-8 text-center text-gray-600 text-sm border-t border-gray-800/50 bg-dark-900">
           &copy; {new Date().getFullYear()} StreamHub Pro. All rights reserved.
       </footer>
     </div>

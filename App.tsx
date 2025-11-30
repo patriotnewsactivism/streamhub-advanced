@@ -2,28 +2,25 @@
 import React, { useState } from 'react';
 import LandingPage from './components/LandingPage';
 import Studio from './components/Studio';
-
-type ViewState = 'landing' | 'studio';
+import { User } from './types';
 
 const App = () => {
-  const [view, setView] = useState<ViewState>('landing');
+  const [user, setUser] = useState<User | null>(null);
 
-  // Simple view switcher
-  // In a real app, this would check authentication status
-  const handleLogin = () => {
-      setView('studio');
+  const handleLogin = (user: User) => {
+      setUser(user);
   };
 
   const handleLogout = () => {
-      setView('landing');
+      setUser(null);
   };
 
   return (
     <>
-        {view === 'landing' ? (
+        {!user ? (
             <LandingPage onLogin={handleLogin} />
         ) : (
-            <Studio onLogout={handleLogout} />
+            <Studio onLogout={handleLogout} user={user} />
         )}
     </>
   );

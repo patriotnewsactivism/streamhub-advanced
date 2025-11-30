@@ -1,14 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
-import { CloudVMStats } from '../types';
-import { Cloud, Server, Wifi, Activity, Zap, Square, Link as LinkIcon, CheckCircle, DollarSign, Settings, BarChart3 } from 'lucide-react';
+import { CloudVMStats, User } from '../types';
+import { Cloud, Server, Wifi, Activity, Zap, Square, Link as LinkIcon, CheckCircle, DollarSign, Settings, BarChart3, Lock } from 'lucide-react';
 
 interface CloudVMManagerProps {
   isStreaming: boolean;
   onStartCloudStream: (url: string) => void;
   onStopCloudStream: () => void;
+  user: User;
 }
 
-const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartCloudStream, onStopCloudStream }) => {
+const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartCloudStream, onStopCloudStream, user }) => {
   const [vmStats, setVmStats] = useState<CloudVMStats>({
     status: 'idle',
     bandwidthSaved: 0,
@@ -18,10 +20,16 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
   const [isBooting, setIsBooting] = useState(true);
   const [selectedBitrate, setSelectedBitrate] = useState(6000); // kbps
   const [sessionCost, setSessionCost] = useState(0);
+  
+  // Local Usage Tracker for Display
+  const [currentUsage, setCurrentUsage] = useState(user.cloudHoursUsed);
 
   // Cost Constants (Approximate Google Cloud Pricing)
   const VM_HOURLY_COST = 0.067; // e2-standard-2
   const EGRESS_COST_PER_GB = 0.085; // Standard Tier
+
+  const isAdmin = user.plan === 'admin';
+  const hasReachedLimit = !isAdmin && currentUsage >= user.cloudHoursLimit;
 
   // Simulate VM Bootup
   useEffect(() => {
@@ -54,15 +62,30 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
             return prev + vmCostPerSec + egressCostPerSec;
         });
 
+        // Increment Usage (Simulated)
+        if (!isAdmin) {
+             setCurrentUsage(prev => prev + (1/3600)); // Add 1 second worth of an hour
+        }
+
       }, 1000);
     } else {
       setVmStats(prev => ({ ...prev, status: 'idle', serverSpeed: 0 }));
     }
     return () => clearInterval(interval);
-  }, [isStreaming, selectedBitrate]);
+  }, [isStreaming, selectedBitrate, isAdmin]);
+
+  // Force stop if limit reached
+  useEffect(() => {
+      if (!isAdmin && currentUsage >= user.cloudHoursLimit && isStreaming) {
+          onStopCloudStream();
+          alert("Cloud Usage Limit Reached. Please upgrade.");
+      }
+  }, [currentUsage, isStreaming, isAdmin, user.cloudHoursLimit, onStopCloudStream]);
 
   const handleStart = () => {
     if (!directLink) return;
+    if (hasReachedLimit) return;
+
     setVmStats(prev => ({ ...prev, status: 'fetching' }));
     // Simulate fetching delay
     setTimeout(() => {
@@ -96,6 +119,30 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
       
       <div className="max-w-4xl w-full bg-slate-800/80 backdrop-blur-md border border-brand-500/30 rounded-2xl p-4 md:p-8 shadow-2xl relative z-10 flex flex-col gap-6">
         
+        {/* Usage Bar (For Non-Admins) */}
+        {!isAdmin && (
+             <div className="bg-dark-900 rounded-lg p-3 border border-gray-700">
+                 <div className="flex justify-between items-end mb-2">
+                     <span className="text-xs text-gray-400 uppercase font-bold">Monthly Cloud Usage</span>
+                     <span className="text-xs font-mono text-white">
+                         <span className={hasReachedLimit ? "text-red-500" : "text-brand-400"}>{currentUsage.toFixed(2)}</span> / {user.cloudHoursLimit} Hrs
+                     </span>
+                 </div>
+                 <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+                     <div 
+                        className={`h-full transition-all ${hasReachedLimit ? 'bg-red-500' : 'bg-brand-500'}`} 
+                        style={{ width: `${Math.min(100, (currentUsage / user.cloudHoursLimit) * 100)}%` }}
+                     ></div>
+                 </div>
+                 {hasReachedLimit && <div className="text-[10px] text-red-500 mt-1 font-bold">Limit Reached. Please Upgrade.</div>}
+             </div>
+        )}
+        {isAdmin && (
+             <div className="bg-brand-900/20 border border-brand-500/20 p-3 rounded-lg text-brand-400 text-xs font-bold text-center uppercase tracking-widest">
+                 Admin Mode: Unlimited Cloud Access
+             </div>
+        )}
+
         {/* Header Stats */}
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 border-b border-gray-700 pb-4">
             <div className="flex items-center gap-3">
@@ -219,11 +266,11 @@ const CloudVMManager: React.FC<CloudVMManagerProps> = ({ isStreaming, onStartClo
 
                 <button 
                     onClick={handleStart}
-                    disabled={!directLink}
+                    disabled={!directLink || hasReachedLimit}
                     className="w-full py-4 mt-2 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-bold text-lg flex items-center justify-center gap-2 shadow-lg shadow-brand-900/20 transition-all active:scale-95"
                 >
-                    <Cloud size={20} /> 
-                    START CLOUD VM
+                    {hasReachedLimit ? <Lock size={20} /> : <Cloud size={20} />}
+                    {hasReachedLimit ? 'USAGE LIMIT REACHED' : 'START CLOUD VM'}
                 </button>
             </div>
         )}
