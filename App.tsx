@@ -6,7 +6,8 @@ import {
   AppState,
   MediaAsset,
   MediaType,
-  NotificationConfig
+  NotificationConfig,
+  StreamMode
 } from './types';
 import CanvasCompositor, { CanvasRef } from './components/CanvasCompositor';
 import DestinationManager from './components/DestinationManager';
@@ -14,14 +15,15 @@ import LayoutSelector from './components/LayoutSelector';
 import MediaBin from './components/MediaBin';
 import CloudImportModal from './components/CloudImportModal';
 import NotificationPanel from './components/NotificationPanel';
+import CloudVMManager from './components/CloudVMManager';
 import { generateStreamMetadata } from './services/geminiService';
-import { Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, AlertCircle, Camera, Cloud, Share2 } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, AlertCircle, Camera, Cloud, Share2, Server, Wifi } from 'lucide-react';
 
 const App = () => {
   // --- State ---
-  const [destinations, setDestinations] = useState<Destination[]>([
-    { id: '1', platform: Platform.YOUTUBE, name: 'Main Channel', streamKey: '****', isEnabled: true, status: 'offline', connectedAccount: 'My Channel' },
-  ]);
+  // Default to empty for real usage, user must add destinations
+  const [destinations, setDestinations] = useState<Destination[]>([]);
+  const [streamMode, setStreamMode] = useState<StreamMode>('local');
   
   const [layout, setLayout] = useState<LayoutMode>(LayoutMode.FULL_CAM);
   const [appState, setAppState] = useState<AppState>({
@@ -101,8 +103,28 @@ const App = () => {
       }
   }, [showNotificationToast]);
 
+  // Mode Switching Logic
+  useEffect(() => {
+      // If switching to Cloud Mode, we can stop the camera to save battery
+      if (streamMode === 'cloud_vm') {
+          if (cameraStream) {
+              cameraStream.getTracks().forEach(t => t.stop());
+              setCameraStream(null);
+          }
+          if (screenStream) {
+              screenStream.getTracks().forEach(t => t.stop());
+              setScreenStream(null);
+          }
+      } else {
+          // Re-enable camera if switching back to local
+          if (!cameraStream) initCam();
+      }
+  }, [streamMode]);
+
   // Initial Camera Load
   const initCam = async () => {
+    if (streamMode === 'cloud_vm') return; // Don't init cam in cloud mode
+    
     setPermissionError(null);
     
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -135,6 +157,22 @@ const App = () => {
 
   // --- Handlers ---
 
+  const handleNotify = () => {
+     if (!notificationConfig.notifyOnLive) return;
+     
+     const subject = encodeURIComponent("I'm Live Now!");
+     const body = encodeURIComponent(`Watch my stream here! \n\nTitle: ${generatedInfo?.title || 'Live Stream'}\n\nJoin me!`);
+     
+     if (notificationConfig.email) {
+         window.open(`mailto:${notificationConfig.email}?subject=${subject}&body=${body}`, '_blank');
+         setShowNotificationToast('Opening Email Client...');
+     } else if (notificationConfig.phone) {
+         // Try SMS link
+         window.open(`sms:${notificationConfig.phone}?&body=${body}`, '_blank');
+         setShowNotificationToast('Opening Messaging App...');
+     }
+  };
+
   const toggleStream = () => {
     if (appState.isStreaming) {
       // Stop Stream
@@ -144,29 +182,34 @@ const App = () => {
       // Start Stream
       const enabled = destinations.filter(d => d.isEnabled);
       if (enabled.length === 0) {
-        alert("Please enable at least one destination!");
+        alert("Please add and enable at least one destination in the right panel.");
         return;
       }
-      setAppState({ ...appState, isStreaming: true });
       
-      // Send Notifications
-      if (notificationConfig.notifyOnLive) {
-          if (notificationConfig.email || notificationConfig.phone) {
-              const methods = [];
-              if (notificationConfig.email) methods.push(notificationConfig.email);
-              if (notificationConfig.phone) methods.push(notificationConfig.phone);
-              setShowNotificationToast(`Broadcasting live link sent to: ${methods.join(', ')}`);
-          }
+      // Verification check for keys
+      const missingKeys = enabled.filter(d => !d.streamKey);
+      if (missingKeys.length > 0) {
+          alert(`Missing stream keys for: ${missingKeys.map(d => d.name).join(', ')}`);
+          return;
       }
 
-      setDestinations(prev => prev.map(d => d.isEnabled ? { ...d, status: 'connecting' } : d));
-      setTimeout(() => {
-        setDestinations(prev => prev.map(d => d.isEnabled ? { ...d, status: 'live' } : d));
-      }, 2000);
+      setAppState({ ...appState, isStreaming: true });
+      handleNotify();
+
+      // In a real browser environment without a backend transcoding server, we cannot push RTMP.
+      // We simulate the *connection state* immediately as if the backend accepted the handshake.
+      setDestinations(prev => prev.map(d => d.isEnabled ? { ...d, status: 'live' } : d));
+      
+      console.log("Starting broadcast to:", enabled.map(d => d.serverUrl));
     }
   };
 
   const toggleScreenShare = async () => {
+    if (streamMode === 'cloud_vm') {
+        alert("Screen sharing is not available in Cloud Mode.");
+        return;
+    }
+
     if (screenStream) {
       screenStream.getTracks().forEach(t => t.stop());
       setScreenStream(null);
@@ -298,6 +341,21 @@ const App = () => {
                 <Monitor size={20} className="text-white"/>
             </div>
             <h1 className="text-xl font-bold tracking-tight">StreamHub<span className="text-brand-500">Pro</span></h1>
+            
+            <div className="ml-8 flex bg-dark-900 p-1 rounded-lg border border-gray-700">
+                <button 
+                  onClick={() => setStreamMode('local')}
+                  className={`px-3 py-1 text-xs font-bold rounded flex items-center gap-2 transition-all ${streamMode === 'local' ? 'bg-brand-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <Camera size={14} /> LOCAL STUDIO
+                </button>
+                <button 
+                  onClick={() => setStreamMode('cloud_vm')}
+                  className={`px-3 py-1 text-xs font-bold rounded flex items-center gap-2 transition-all ${streamMode === 'cloud_vm' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <Server size={14} /> CLOUD VM
+                </button>
+            </div>
         </div>
         
         <div className="flex items-center gap-6">
@@ -307,17 +365,21 @@ const App = () => {
                     {formatTime(appState.streamDuration)}
                 </div>
             )}
-            <button 
-                onClick={toggleStream}
-                className={`px-6 py-2 rounded-full font-bold transition-all shadow-lg flex items-center gap-2
-                    ${appState.isStreaming 
-                        ? 'bg-red-600 hover:bg-red-700 shadow-red-900/50' 
-                        : 'bg-brand-600 hover:bg-brand-500 shadow-brand-900/50'
-                    }`}
-            >
-                {appState.isStreaming ? <Square size={18} fill="currentColor"/> : <Play size={18} fill="currentColor" />}
-                {appState.isStreaming ? 'END STREAM' : 'GO LIVE'}
-            </button>
+            
+            {streamMode === 'local' && (
+              <button 
+                  onClick={toggleStream}
+                  className={`px-6 py-2 rounded-full font-bold transition-all shadow-lg flex items-center gap-2
+                      ${appState.isStreaming 
+                          ? 'bg-red-600 hover:bg-red-700 shadow-red-900/50' 
+                          : 'bg-brand-600 hover:bg-brand-500 shadow-brand-900/50'
+                      }`}
+              >
+                  {appState.isStreaming ? <Square size={18} fill="currentColor"/> : <Play size={18} fill="currentColor" />}
+                  {appState.isStreaming ? 'END STREAM' : 'GO LIVE'}
+              </button>
+            )}
+            {/* Cloud mode button is handled inside CloudVMManager */}
         </div>
       </header>
 
@@ -363,15 +425,15 @@ const App = () => {
             {/* Notification Setup */}
             <NotificationPanel config={notificationConfig} onUpdate={setNotificationConfig} />
 
-            {/* Media Bin */}
-            <div className="flex-1 overflow-hidden flex flex-col relative">
+            {/* Media Bin - Only needed in Local mode for switching, but we keep it visible for cloud import refs */}
+            <div className={`flex-1 overflow-hidden flex flex-col relative ${streamMode === 'cloud_vm' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                 <div className="px-4 py-2 bg-dark-800 border-b border-gray-700 font-bold text-xs text-gray-400 uppercase flex justify-between items-center">
                     Media & Overlays
                     <button 
                         onClick={() => setIsCloudModalOpen(true)}
                         className="text-[10px] bg-dark-700 hover:bg-dark-600 px-2 py-0.5 rounded flex items-center gap-1 text-blue-400"
                     >
-                        <Cloud size={10} /> Cloud Import
+                        <Cloud size={10} /> URL / Cloud
                     </button>
                 </div>
                 <MediaBin 
@@ -386,73 +448,88 @@ const App = () => {
 
         {/* Center: Stage */}
         <main className="flex-1 flex flex-col min-w-0 bg-black relative">
-            {/* Viewport */}
-            <div className="flex-1 p-8 flex items-center justify-center relative bg-[#0a0a0a]">
-                 <CanvasCompositor 
-                    ref={canvasRef}
-                    layout={layout}
-                    cameraStream={cameraStream}
-                    screenStream={screenStream}
-                    activeMediaUrl={activeImageUrl}
-                    activeVideoUrl={activeVideoUrl}
-                    backgroundUrl={null}
-                 />
+            {streamMode === 'cloud_vm' ? (
+                <CloudVMManager 
+                    isStreaming={appState.isStreaming}
+                    onStartCloudStream={(url) => {
+                        // In cloud mode, we just pass the URL to the "VM"
+                        console.log("Streaming URL from cloud:", url);
+                        toggleStream();
+                    }}
+                    onStopCloudStream={toggleStream}
+                />
+            ) : (
+                <>
+                    {/* Viewport */}
+                    <div className="flex-1 p-8 flex items-center justify-center relative bg-[#0a0a0a]">
+                        <CanvasCompositor 
+                            ref={canvasRef}
+                            layout={layout}
+                            cameraStream={cameraStream}
+                            screenStream={screenStream}
+                            activeMediaUrl={activeImageUrl}
+                            activeVideoUrl={activeVideoUrl}
+                            backgroundUrl={null}
+                            isLowDataMode={streamMode === 'cloud_vm'} // Disable rendering if cloud mode is on
+                        />
 
-                 {/* Permission Error Overlay */}
-                 {(!cameraStream && permissionError) && (
-                    <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-                        <div className="bg-dark-800 p-6 rounded-xl border border-red-500/50 max-w-md w-full text-center shadow-2xl">
-                            <div className="w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <AlertCircle className="text-red-500" size={24} />
+                        {/* Permission Error Overlay */}
+                        {(!cameraStream && permissionError) && (
+                            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                                <div className="bg-dark-800 p-6 rounded-xl border border-red-500/50 max-w-md w-full text-center shadow-2xl">
+                                    <div className="w-12 h-12 bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <AlertCircle className="text-red-500" size={24} />
+                                    </div>
+                                    <h3 className="text-xl font-bold text-white mb-2">Camera Access Required</h3>
+                                    <p className="text-gray-400 mb-6 text-sm">{permissionError}</p>
+                                    <button 
+                                        onClick={initCam}
+                                        className="w-full bg-brand-600 hover:bg-brand-500 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Camera size={18} />
+                                        Try Again
+                                    </button>
+                                </div>
                             </div>
-                            <h3 className="text-xl font-bold text-white mb-2">Camera Access Required</h3>
-                            <p className="text-gray-400 mb-6 text-sm">{permissionError}</p>
+                        )}
+                    </div>
+
+                    {/* Bottom Control Deck */}
+                    <div className="h-24 bg-dark-800 border-t border-gray-700 px-8 flex items-center justify-center gap-8 z-10 shrink-0">
+                        {/* Source Controls */}
+                        <div className="flex items-center gap-4 mr-8 border-r border-gray-700 pr-8">
                             <button 
-                                onClick={initCam}
-                                className="w-full bg-brand-600 hover:bg-brand-500 text-white px-6 py-3 rounded-lg font-bold transition-colors flex items-center justify-center gap-2"
+                                onClick={toggleMic}
+                                disabled={!cameraStream}
+                                className={`p-4 rounded-full transition-all ${isMicMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'} ${!cameraStream && 'opacity-50 cursor-not-allowed'}`}
+                                title="Toggle Mic"
                             >
-                                <Camera size={18} />
-                                Try Again
+                                {isMicMuted ? <MicOff size={24} /> : <Mic size={24} />}
+                            </button>
+                            <button 
+                                onClick={toggleCam}
+                                disabled={!cameraStream}
+                                className={`p-4 rounded-full transition-all ${isCamMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'} ${!cameraStream && 'opacity-50 cursor-not-allowed'}`}
+                                title="Toggle Camera"
+                            >
+                                {isCamMuted ? <VideoOff size={24} /> : <Video size={24} />}
+                            </button>
+                            <button 
+                                onClick={toggleScreenShare}
+                                className={`p-4 rounded-full transition-all ${screenStream ? 'bg-brand-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
+                                title="Share Screen"
+                            >
+                                {screenStream ? <MonitorOff size={24} /> : <Monitor size={24} />}
                             </button>
                         </div>
+
+                        {/* Layouts */}
+                        <div className="flex-1 max-w-2xl">
+                            <LayoutSelector currentLayout={layout} onSelect={setLayout} />
+                        </div>
                     </div>
-                 )}
-            </div>
-
-            {/* Bottom Control Deck */}
-            <div className="h-24 bg-dark-800 border-t border-gray-700 px-8 flex items-center justify-center gap-8 z-10 shrink-0">
-                {/* Source Controls */}
-                <div className="flex items-center gap-4 mr-8 border-r border-gray-700 pr-8">
-                    <button 
-                        onClick={toggleMic}
-                        disabled={!cameraStream}
-                        className={`p-4 rounded-full transition-all ${isMicMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'} ${!cameraStream && 'opacity-50 cursor-not-allowed'}`}
-                        title="Toggle Mic"
-                    >
-                        {isMicMuted ? <MicOff size={24} /> : <Mic size={24} />}
-                    </button>
-                    <button 
-                        onClick={toggleCam}
-                        disabled={!cameraStream}
-                        className={`p-4 rounded-full transition-all ${isCamMuted ? 'bg-red-500 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'} ${!cameraStream && 'opacity-50 cursor-not-allowed'}`}
-                        title="Toggle Camera"
-                    >
-                        {isCamMuted ? <VideoOff size={24} /> : <Video size={24} />}
-                    </button>
-                     <button 
-                        onClick={toggleScreenShare}
-                        className={`p-4 rounded-full transition-all ${screenStream ? 'bg-brand-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}`}
-                        title="Share Screen"
-                    >
-                        {screenStream ? <MonitorOff size={24} /> : <Monitor size={24} />}
-                    </button>
-                </div>
-
-                {/* Layouts */}
-                <div className="flex-1 max-w-2xl">
-                    <LayoutSelector currentLayout={layout} onSelect={setLayout} />
-                </div>
-            </div>
+                </>
+            )}
         </main>
         
         {/* Right Sidebar: Destinations */}

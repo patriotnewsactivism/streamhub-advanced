@@ -15,6 +15,8 @@ export enum LayoutMode {
 
 export type MediaType = 'image' | 'video' | 'audio';
 
+export type StreamMode = 'local' | 'cloud_vm';
+
 export interface Destination {
   id: string;
   platform: Platform;
@@ -54,3 +56,10 @@ export interface NotificationConfig {
 }
 
 export type CloudProvider = 'Google Drive' | 'Dropbox' | 'OneDrive' | 'Box' | 'AWS S3' | 'Google Cloud';
+
+export interface CloudVMStats {
+  status: 'booting' | 'idle' | 'fetching' | 'streaming';
+  bandwidthSaved: number; // in MB
+  serverSpeed: number; // in Mbps
+  activeJob?: string;
+}

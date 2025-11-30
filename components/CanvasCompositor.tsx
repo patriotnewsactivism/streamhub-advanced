@@ -8,6 +8,7 @@ interface CanvasCompositorProps {
   activeMediaUrl: string | null; // Overlay Image
   activeVideoUrl: string | null; // Main Video File
   backgroundUrl: string | null; // Custom Template Background
+  isLowDataMode?: boolean; // NEW: If true, stop rendering to save battery/cpu
 }
 
 export interface CanvasRef {
@@ -20,7 +21,8 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
   screenStream,
   activeMediaUrl,
   activeVideoUrl,
-  backgroundUrl
+  backgroundUrl,
+  isLowDataMode = false
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const camVideoRef = useRef<HTMLVideoElement>(document.createElement('video'));
@@ -42,33 +44,33 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
 
   // Update Media Sources
   useEffect(() => {
-    if (cameraStream) {
+    if (cameraStream && !isLowDataMode) {
       camVideoRef.current.srcObject = cameraStream;
       camVideoRef.current.play().catch(e => console.error("Cam play error", e));
     } else {
       camVideoRef.current.srcObject = null;
     }
-  }, [cameraStream]);
+  }, [cameraStream, isLowDataMode]);
 
   useEffect(() => {
-    if (screenStream) {
+    if (screenStream && !isLowDataMode) {
       screenVideoRef.current.srcObject = screenStream;
       screenVideoRef.current.play().catch(e => console.error("Screen play error", e));
     } else {
       screenVideoRef.current.srcObject = null;
     }
-  }, [screenStream]);
+  }, [screenStream, isLowDataMode]);
 
   // Handle Uploaded Video Asset
   useEffect(() => {
-      if (activeVideoUrl) {
+      if (activeVideoUrl && !isLowDataMode) {
           mediaVideoRef.current.src = activeVideoUrl;
           mediaVideoRef.current.play().catch(e => console.error("Media play error", e));
       } else {
           mediaVideoRef.current.pause();
           mediaVideoRef.current.src = '';
       }
-  }, [activeVideoUrl]);
+  }, [activeVideoUrl, isLowDataMode]);
 
   // Handle Images
   useEffect(() => {
@@ -97,6 +99,20 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
 
     canvas.width = 1280;
     canvas.height = 720;
+
+    // If Low Data Mode is active (Cloud Mode), draw a placeholder and STOP the loop
+    if (isLowDataMode) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0,0, canvas.width, canvas.height);
+        ctx.fillStyle = '#334155';
+        ctx.font = 'bold 40px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText("CLOUD VM ACTIVE", canvas.width/2, canvas.height/2);
+        ctx.font = '20px monospace';
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillText("Rendering paused on device to save data", canvas.width/2, canvas.height/2 + 40);
+        return; // EXIT LOOP
+    }
 
     let animationId: number;
 
@@ -144,10 +160,6 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
       // Layout Logic
       if (layout === LayoutMode.FULL_CAM) {
         if (hasContent) {
-             // If user wants full cam but is playing a video, maybe just show video? 
-             // Logic: Full Cam is strict. If video is playing, switch layout manually?
-             // Let's assume Full Cam overrides video unless video is FORCED.
-             // For safety in this app: If video is active, we show it instead of cam.
              drawCover(contentVideo, 0, 0, w, h);
         } else {
              drawCover(camVideoRef.current, 0, 0, w, h);
@@ -262,7 +274,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
     return () => {
       cancelAnimationFrame(animationId);
     };
-  }, [layout, cameraStream, screenStream, activeMediaUrl, activeVideoUrl, backgroundUrl]);
+  }, [layout, cameraStream, screenStream, activeMediaUrl, activeVideoUrl, backgroundUrl, isLowDataMode]);
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-black aspect-video rounded-lg overflow-hidden border border-gray-800 shadow-2xl relative">
