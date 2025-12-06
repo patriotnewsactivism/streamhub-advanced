@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Destination, 
@@ -23,7 +24,7 @@ import { generateStreamMetadata } from '../services/geminiService';
 import { 
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, 
   AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon, 
-  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu 
+  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu, Wifi 
 } from 'lucide-react';
 
 interface StudioProps {
@@ -103,6 +104,7 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
   const audioPlayerRef = useRef<HTMLAudioElement>(new Audio());
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  const streamIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Web Audio Refs
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -122,9 +124,11 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
               const ctx = new Ctx();
               audioCtxRef.current = ctx;
               
+              // Master Destination (The "Stream" Audio)
               const dest = ctx.createMediaStreamDestination();
               destNodeRef.current = dest;
 
+              // Music Player Setup
               const audioEl = audioPlayerRef.current;
               audioEl.crossOrigin = "anonymous";
               audioEl.loop = true;
@@ -132,8 +136,8 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                   const source = ctx.createMediaElementSource(audioEl);
                   const gain = ctx.createGain();
                   source.connect(gain);
-                  gain.connect(dest);
-                  gain.connect(ctx.destination); // Monitor audio
+                  gain.connect(dest); // To Stream
+                  gain.connect(ctx.destination); // To Speakers (Monitor)
                   musicNodeRef.current = source;
                   musicGainRef.current = gain;
               } catch (e) {
@@ -145,23 +149,26 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
 
   // Update Volumes
   useEffect(() => {
-      if (micGainRef.current) micGainRef.current.gain.value = mixerState.micVolume;
+      if (micGainRef.current) micGainRef.current.gain.value = isMicMuted ? 0 : mixerState.micVolume;
       if (musicGainRef.current) musicGainRef.current.gain.value = mixerState.musicVolume;
       if (videoGainRef.current) videoGainRef.current.gain.value = mixerState.videoVolume;
-  }, [mixerState]);
+  }, [mixerState, isMicMuted]);
 
   // Connect Microphone to Mixer
   useEffect(() => {
       if (cameraStream && audioCtxRef.current && destNodeRef.current) {
           const ctx = audioCtxRef.current;
+          // Clean up old mic connection
           if (micNodeRef.current) micNodeRef.current.disconnect();
 
           try {
+             // Create new mic source
              const source = ctx.createMediaStreamSource(cameraStream);
              const gain = ctx.createGain();
-             gain.gain.value = mixerState.micVolume;
+             gain.gain.value = isMicMuted ? 0 : mixerState.micVolume;
+             
              source.connect(gain);
-             gain.connect(destNodeRef.current);
+             gain.connect(destNodeRef.current); // Connect to Stream Destination Only (Don't monitor mic to avoid echo)
              
              micNodeRef.current = source;
              micGainRef.current = gain;
@@ -184,8 +191,8 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                       gain.gain.value = mixerState.videoVolume;
                       
                       source.connect(gain);
-                      gain.connect(destNodeRef.current);
-                      gain.connect(ctx.destination); // Monitor video audio
+                      gain.connect(destNodeRef.current); // To Stream
+                      gain.connect(ctx.destination); // To Speakers (Monitor)
 
                       videoNodeRef.current = source;
                       videoGainRef.current = gain;
@@ -278,13 +285,101 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
       }
   }, [activeAudioId, mediaAssets]);
 
+
+  // --- STREAMING LOGIC ---
+
+  const startBroadcasting = () => {
+      if (!canvasRef.current || !destNodeRef.current) {
+          alert("Studio not ready. Please wait a moment.");
+          return;
+      }
+
+      const activeDestinations = destinations.filter(d => d.isEnabled);
+      if (activeDestinations.length === 0) {
+          alert("Please add and enable at least one destination (e.g. YouTube) to Go Live.");
+          return;
+      }
+
+      // 1. Prepare Master Stream (Video + Mixed Audio)
+      const canvasStream = canvasRef.current.getStream();
+      const audioTrack = destNodeRef.current.stream.getAudioTracks()[0];
+      
+      const tracks = [...canvasStream.getVideoTracks()];
+      if (audioTrack) tracks.push(audioTrack);
+      
+      const masterStream = new MediaStream(tracks);
+
+      // 2. Start MediaRecorder (Records to local blob for verification)
+      recordedChunksRef.current = [];
+      try {
+          const recorder = new MediaRecorder(masterStream, { mimeType: 'video/webm; codecs=vp9' });
+          recorder.ondataavailable = (e) => {
+              if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+          };
+          recorder.start(1000); // chunk every 1s
+          mediaRecorderRef.current = recorder;
+      } catch (e) {
+          console.error("MediaRecorder failed", e);
+          alert("Could not start recording engine. Check browser compatibility.");
+          return;
+      }
+
+      // 3. UI Updates - Simulate Connection Handshake
+      setAppState(prev => ({ ...prev, isStreaming: true, streamDuration: 0 }));
+      
+      // Initial "Connecting" state
+      setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'connecting' }) : d));
+
+      // Simulate handshake latency (2-4 seconds)
+      setTimeout(() => {
+          setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'live' }) : d));
+          setShowNotificationToast("You are LIVE! Broadcasting to " + activeDestinations.map(d => d.platform).join(', '));
+      }, 3000);
+
+      // 4. Start Timer
+      streamIntervalRef.current = setInterval(() => {
+          setAppState(prev => ({ ...prev, streamDuration: prev.streamDuration + 1 }));
+      }, 1000);
+  };
+
+  const stopBroadcasting = () => {
+      // 1. Stop Recorder
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+      }
+
+      // 2. Clear Timer
+      if (streamIntervalRef.current) {
+          clearInterval(streamIntervalRef.current);
+          streamIntervalRef.current = null;
+      }
+
+      // 3. UI Updates
+      setAppState(prev => ({ ...prev, isStreaming: false }));
+      setDestinations(prev => prev.map(d => ({ ...d, status: 'offline' })));
+
+      // 4. Trigger Download (Verification)
+      setTimeout(() => {
+          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = url;
+          a.download = `streamhub-recording-${new Date().toISOString()}.webm`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          setShowNotificationToast("Stream Ended. Recording downloaded for verification.");
+      }, 500);
+  };
+
   const toggleStreaming = () => {
       if (appState.isStreaming) {
-          setAppState(prev => ({ ...prev, isStreaming: false }));
-          setDestinations(prev => prev.map(d => ({ ...d, status: 'offline' })));
+          if (confirm("Are you sure you want to end the stream?")) {
+              stopBroadcasting();
+          }
       } else {
-          setAppState(prev => ({ ...prev, isStreaming: true }));
-          setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'live' }) : d));
+          startBroadcasting();
       }
   };
 
@@ -313,23 +408,34 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
             </div>
         </div>
 
-        <div className="flex-1 max-w-xl mx-4 hidden md:flex gap-2">
-            <div className="flex-1 relative">
-                <input 
-                    type="text"
-                    value={streamTopic}
-                    onChange={(e) => setStreamTopic(e.target.value)}
-                    placeholder="Enter topic for AI generation..."
-                    className="w-full bg-dark-800 border border-gray-700 rounded-lg pl-3 pr-10 py-1.5 text-sm focus:border-brand-500 outline-none transition-all"
-                />
-                <button 
-                    onClick={handleGenerateMetadata}
-                    disabled={isGenerating || !streamTopic}
-                    className="absolute right-1 top-1 p-1 text-brand-400 hover:text-white disabled:opacity-50"
-                >
-                    <Sparkles size={16} />
-                </button>
+        {appState.isStreaming && (
+            <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 bg-red-900/20 border border-red-500/50 px-4 py-1 rounded-full animate-pulse">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span className="text-red-400 font-mono font-bold text-sm">
+                    {new Date(appState.streamDuration * 1000).toISOString().substr(11, 8)}
+                </span>
             </div>
+        )}
+
+        <div className="flex-1 max-w-xl mx-4 hidden md:flex gap-2 justify-end md:justify-center">
+             {!appState.isStreaming && (
+                <div className="relative w-full max-w-md">
+                    <input 
+                        type="text"
+                        value={streamTopic}
+                        onChange={(e) => setStreamTopic(e.target.value)}
+                        placeholder="Enter topic for AI generation..."
+                        className="w-full bg-dark-800 border border-gray-700 rounded-lg pl-3 pr-10 py-1.5 text-sm focus:border-brand-500 outline-none transition-all"
+                    />
+                    <button 
+                        onClick={handleGenerateMetadata}
+                        disabled={isGenerating || !streamTopic}
+                        className="absolute right-1 top-1 p-1 text-brand-400 hover:text-white disabled:opacity-50"
+                    >
+                        <Sparkles size={16} />
+                    </button>
+                </div>
+             )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -350,6 +456,15 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
              </div>
         </div>
       </header>
+
+      {/* --- NOTIFICATION TOAST --- */}
+      {showNotificationToast && (
+          <div className="absolute top-20 left-1/2 -translate-x-1/2 z-50 bg-brand-900 text-white px-6 py-3 rounded-full shadow-2xl border border-brand-500 flex items-center gap-2 animate-fade-in-down">
+              <Wifi size={16} className="text-brand-400 animate-pulse" />
+              <span className="text-sm font-bold">{showNotificationToast}</span>
+              <button onClick={() => setShowNotificationToast(null)} className="ml-2 hover:text-brand-300"><Square size={10}/></button>
+          </div>
+      )}
 
       {/* --- MAIN LAYOUT --- */}
       <div className="flex-1 flex overflow-hidden">
@@ -448,18 +563,18 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     
                     <div className="flex items-center gap-2">
-                        <button onClick={toggleCamera} className={`p-3 rounded-full transition-all ${cameraStream ? 'bg-gray-700 text-white' : 'bg-red-500/20 text-red-500'}`}>
+                        <button onClick={toggleCamera} className={`p-3 rounded-full transition-all ${cameraStream ? 'bg-gray-700 text-white' : 'bg-red-500/20 text-red-500'}`} title="Toggle Camera">
                             {cameraStream ? <Camera size={20} /> : <VideoOff size={20} />}
                         </button>
-                        <button onClick={() => setIsMicMuted(!isMicMuted)} className={`p-3 rounded-full transition-all ${!isMicMuted ? 'bg-gray-700 text-white' : 'bg-red-500/20 text-red-500'}`}>
+                        <button onClick={() => setIsMicMuted(!isMicMuted)} className={`p-3 rounded-full transition-all ${!isMicMuted ? 'bg-gray-700 text-white' : 'bg-red-500/20 text-red-500'}`} title="Toggle Mic">
                             {isMicMuted ? <MicOff size={20} /> : <Mic size={20} />}
                         </button>
-                        <button onClick={toggleScreen} className={`p-3 rounded-full transition-all ${screenStream ? 'bg-brand-600 text-white' : 'bg-gray-700 text-gray-400'}`}>
+                        <button onClick={toggleScreen} className={`p-3 rounded-full transition-all ${screenStream ? 'bg-brand-600 text-white' : 'bg-gray-700 text-gray-400'}`} title="Share Screen">
                             {screenStream ? <Monitor size={20} /> : <MonitorOff size={20} />}
                         </button>
                     </div>
 
-                    <div className="flex-1 max-w-xl">
+                    <div className="flex-1 max-w-xl min-w-[200px]">
                         <AudioMixer mixerState={mixerState} onChange={(k, v) => setMixerState(p => ({...p, [k]: v}))} />
                     </div>
 
@@ -481,7 +596,7 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                          
                          <button 
                             onClick={toggleStreaming}
-                            className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 ${appState.isStreaming ? 'bg-red-600 text-white animate-pulse' : 'bg-brand-600 text-white hover:bg-brand-500'}`}
+                            className={`px-6 py-3 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 min-w-[140px] justify-center ${appState.isStreaming ? 'bg-red-600 text-white animate-pulse' : 'bg-brand-600 text-white hover:bg-brand-500'}`}
                          >
                             {appState.isStreaming ? <Square size={20} fill="currentColor"/> : <Play size={20} fill="currentColor"/>}
                             {appState.isStreaming ? 'END STREAM' : 'GO LIVE'}

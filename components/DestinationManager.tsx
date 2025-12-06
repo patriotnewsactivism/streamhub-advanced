@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Destination, Platform } from '../types';
-import { Trash2, Plus, Youtube, Facebook, Twitch, Globe, ToggleLeft, ToggleRight, Wifi, Info, Key, Server, Save, X, Lock } from 'lucide-react';
+import { Trash2, Plus, Youtube, Facebook, Twitch, Globe, ToggleLeft, ToggleRight, Wifi, Info, Key, Server, Save, X, Lock, Loader2 } from 'lucide-react';
 
 interface DestinationManagerProps {
   destinations: Destination[];
@@ -189,7 +189,14 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
             
             <div className="flex items-center gap-2 shrink-0">
                {dest.status === 'live' && (
-                    <span className="text-[10px] font-bold text-red-500 animate-pulse border border-red-500/50 px-1 rounded">LIVE</span>
+                    <span className="text-[10px] font-bold text-red-500 animate-pulse border border-red-500/50 px-1 rounded flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> LIVE
+                    </span>
+               )}
+               {dest.status === 'connecting' && (
+                   <span className="text-[10px] font-bold text-yellow-500 px-1 rounded flex items-center gap-1">
+                       <Loader2 size={10} className="animate-spin" /> CONNECTING
+                   </span>
                )}
 
               <button 

@@ -127,6 +127,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
   useImperativeHandle(ref, () => ({
     getStream: () => {
       if (canvasRef.current) {
+        // Force 30fps capture
         return canvasRef.current.captureStream(30);
       }
       return new MediaStream();
@@ -192,7 +193,7 @@ const CanvasCompositor = forwardRef<CanvasRef, CanvasCompositorProps>(({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
 
     canvas.width = 1280;
