@@ -36,6 +36,8 @@ steps:
       - '--region'
       - '${_REGION}'
       - '--allow-unauthenticated'
+      - '--service-account'
+      - '${_CLOUD_RUN_SERVICE_ACCOUNT}'
       - '--set-secrets'
       - 'DB_PASS=streamhub-db-password:latest'
       - '--set-env-vars'
@@ -89,6 +91,8 @@ steps:
       - '--region'
       - '${_REGION}'
       - '--allow-unauthenticated'
+      - '--service-account'
+      - '${_CLOUD_RUN_SERVICE_ACCOUNT}'
 
 # ==========================================
 # Options & Config
@@ -107,6 +111,7 @@ substitutions:
   _REDIS_PORT: '6379'
   _VITE_BACKEND_URL: ''
   _VITE_GEMINI_API_KEY: ''
+  _CLOUD_RUN_SERVICE_ACCOUNT: 'streamhub-run-sa@${PROJECT_ID}.iam.gserviceaccount.com'
 
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BACKEND_SERVICE_NAME}:$COMMIT_SHA'
