@@ -1,0 +1,11 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.init'
+      - '-t'
+      - 'us-west1-docker.pkg.dev/wtp-apps/cloud-run-source-deploy/streamhub-init:latest'
+      - '.'
+images:
+  - 'us-west1-docker.pkg.dev/wtp-apps/cloud-run-source-deploy/streamhub-init:latest'

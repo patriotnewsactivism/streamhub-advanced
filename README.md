@@ -251,7 +251,6 @@ When a branch (for example, `backend-database-integration`) contains a very larg
 5. **Link PRs together** – use GitHub’s “linked pull request” or issue references so reviewers see the sequence.
 
 This approach avoids GitHub’s diff rendering limits and shortens review cycles while keeping the original work intact on the source branch.
-
 ---
 
 ## Documentation
