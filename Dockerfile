@@ -1,0 +1,44 @@
+# Backend Dockerfile for StreamHub Pro RTMP Streaming Server
+# Handles WebSocket communication and PostgreSQL database integration
+
+FROM node:20-alpine
+
+# Install FFmpeg and system dependencies
+RUN apk add --no-cache \
+    ffmpeg \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+WORKDIR /app/backend
+
+# Copy backend package files
+COPY backend/package*.json ./
+
+# Install dependencies
+RUN npm install --production && npm cache clean --force
+
+# Copy backend source code
+COPY backend/server.js ./
+
+# Create media directory for streams
+RUN mkdir -p ./media
+
+# Create non-root user for security
+RUN addgroup -g 1001 -S streamuser && \
+    adduser -u 1001 -S streamuser -G streamuser
+
+# Set ownership
+RUN chown -R streamuser:streamuser /app
+
+# Switch to non-root user
+USER streamuser
+
+# Expose HTTP API port (Cloud Run requires single port)
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Start the server
+CMD ["node", "server.js"]
