@@ -22,7 +22,7 @@ steps:
       - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BACKEND_SERVICE_NAME}'
 
   # ==========================================
-  # 2. Deploy Backend (to get URL for frontend)
+  # 2. Deploy Backend
   # ==========================================
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Deploy Backend'
@@ -44,18 +44,15 @@ steps:
   # ==========================================
   # 3. Build & Push Frontend
   # ==========================================
-  # Create a .env file so Vite picks up the Backend URL during build
   - name: 'bash'
     id: 'Configure Frontend Env'
     script: |
       echo "VITE_BACKEND_URL=${_VITE_BACKEND_URL}" > .env
       echo "VITE_GEMINI_API_KEY=${_VITE_GEMINI_API_KEY}" >> .env
-      # If VITE_BACKEND_URL is not set manually, try to fetch it from the deployed service
       if [ -z "${_VITE_BACKEND_URL}" ]; then
         echo "Fetching deployed backend URL..."
         BACKEND_URL=$(gcloud run services describe ${_BACKEND_SERVICE_NAME} --region ${_REGION} --format 'value(status.url)')
         echo "VITE_BACKEND_URL=$BACKEND_URL" >> .env
-        echo "Detected Backend URL: $BACKEND_URL"
       fi
 
   - name: 'gcr.io/cloud-builders/docker'
@@ -94,30 +91,27 @@ steps:
       - '--allow-unauthenticated'
 
 # ==========================================
-# Configuration Substitutions
+# Options & Config
 # ==========================================
+# logsBucket: 'gs://your-bucket-name'  <-- CORRECT LOCATION (Optional, currently removed)
+options:
+  logging: CLOUD_LOGGING_ONLY  # <-- logsBucket cannot be inside here
+
 substitutions:
   _REGION: us-west1
   _REPO_NAME: cloud-run-source-deploy
   _BACKEND_SERVICE_NAME: streamhub-backend
   _FRONTEND_SERVICE_NAME: streamhub-frontend
-  
-  # Database Config (Default matches your deploy.sh)
   _INSTANCE_CONNECTION_NAME: 'your-project:your-region:your-instance'
   _DB_USER: streamhub
   _DB_NAME: streamhub
-  _REDIS_HOST: 'redis-host-ip' # Replace with actual Redis IP if using VPC
+  _REDIS_HOST: 'redis-host-ip'
   _REDIS_PORT: '6379'
-  
-  # Frontend Config
-  _VITE_BACKEND_URL: '' # Leave empty to auto-detect from backend deployment
-  _VITE_GEMINI_API_KEY: '' # Optional: Provide key for AI features
+  _VITE_BACKEND_URL: ''
+  _VITE_GEMINI_API_KEY: ''
 
 images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BACKEND_SERVICE_NAME}:$COMMIT_SHA'
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_BACKEND_SERVICE_NAME}:latest'
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_FRONTEND_SERVICE_NAME}:$COMMIT_SHA'
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_FRONTEND_SERVICE_NAME}:latest'
-
-options:
-  logsBucket: 'gs://streamhub-pro'
