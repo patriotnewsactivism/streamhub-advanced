@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User } from '../types';
 import AuthModal from './AuthModal';
@@ -26,8 +25,8 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       <AuthModal 
         isOpen={isAuthOpen} 
         onClose={() => setIsAuthOpen(false)} 
-        initialMode={authMode}
         onAuthSuccess={onLogin}
+        initialMode={authMode}
       />
 
       {/* Navbar */}
