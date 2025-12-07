@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  # Presentation Tier - Frontend React Application
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: streamhub-frontend
+    ports:
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - streamhub-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Application Tier - Backend Streaming/Transcoding Server
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: streamhub-backend
+    ports:
+      - "3000:3000"   # Express API
+      - "8081:8080"   # WebSocket signaling
+      - "1935:1935"   # RTMP
+      - "8000:8000"   # HLS output
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
+    networks:
+      - streamhub-network
+    depends_on:
+      - redis
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - media-storage:/app/media
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Data Tier - Redis for session/cache management
+  redis:
+    image: redis:7-alpine
+    container_name: streamhub-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - streamhub-network
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Data Tier - PostgreSQL for persistent data
+  postgres:
+    image: postgres:15-alpine
+    container_name: streamhub-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=streamhub
+      - POSTGRES_USER=streamhub
+      - POSTGRES_PASSWORD=streamhub
+    networks:
+      - streamhub-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U streamhub"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+networks:
+  streamhub-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
+  postgres-data:
+    driver: local
+  media-storage:
+    driver: local

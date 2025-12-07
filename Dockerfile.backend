@@ -1,0 +1,116 @@
+# Backend Dockerfile for RTMP Streaming/Transcoding Server
+# This handles WebRTC to RTMP conversion for multi-platform streaming
+
+FROM node:20-alpine
+
+# Install FFmpeg and dependencies
+RUN apk add --no-cache \
+    ffmpeg \
+    curl \
+    && rm -rf /var/cache/apk/*
+
+WORKDIR /app
+
+# Create backend directory structure
+RUN mkdir -p /app/backend
+
+# Copy package files for backend
+COPY backend/package*.json ./backend/ 2>/dev/null || echo '{"name":"streamhub-backend","version":"1.0.0","dependencies":{"node-media-server":"^2.6.3","express":"^4.18.2","ws":"^8.14.2","cors":"^2.8.5"}}' > ./backend/package.json
+
+# Install backend dependencies
+WORKDIR /app/backend
+RUN npm install --production && npm cache clean --force
+
+# Copy backend source code
+COPY backend/ ./ 2>/dev/null || true
+
+# Create a basic server if none exists
+RUN if [ ! -f "server.js" ]; then \
+    echo "const NodeMediaServer = require('node-media-server');\n\
+const express = require('express');\n\
+const cors = require('cors');\n\
+const WebSocket = require('ws');\n\
+\n\
+// Express API server\n\
+const app = express();\n\
+app.use(cors());\n\
+app.use(express.json());\n\
+\n\
+// Health check endpoint\n\
+app.get('/health', (req, res) => {\n\
+  res.json({ status: 'healthy', service: 'streamhub-backend' });\n\
+});\n\
+\n\
+// Node-Media-Server configuration\n\
+const config = {\n\
+  rtmp: {\n\
+    port: 1935,\n\
+    chunk_size: 60000,\n\
+    gop_cache: true,\n\
+    ping: 30,\n\
+    ping_timeout: 60\n\
+  },\n\
+  http: {\n\
+    port: 8000,\n\
+    allow_origin: '*',\n\
+    mediaroot: './media'\n\
+  },\n\
+  trans: {\n\
+    ffmpeg: '/usr/bin/ffmpeg',\n\
+    tasks: [\n\
+      {\n\
+        app: 'live',\n\
+        hls: true,\n\
+        hlsFlags: '[hls_time=2:hls_list_size=3:hls_flags=delete_segments]'\n\
+      }\n\
+    ]\n\
+  }\n\
+};\n\
+\n\
+const nms = new NodeMediaServer(config);\n\
+nms.run();\n\
+\n\
+// WebSocket server for signaling\n\
+const wss = new WebSocket.Server({ port: 8080 });\n\
+\n\
+wss.on('connection', (ws) => {\n\
+  console.log('Client connected');\n\
+  \n\
+  ws.on('message', (message) => {\n\
+    console.log('Received:', message);\n\
+    // Handle WebRTC signaling here\n\
+  });\n\
+  \n\
+  ws.on('close', () => {\n\
+    console.log('Client disconnected');\n\
+  });\n\
+});\n\
+\n\
+// Start Express server\n\
+const PORT = process.env.PORT || 3000;\n\
+app.listen(PORT, () => {\n\
+  console.log(\`StreamHub Backend running on port \${PORT}\`);\n\
+  console.log(\`RTMP server on port 1935\`);\n\
+  console.log(\`WebSocket server on port 8080\`);\n\
+});" > server.js; \
+fi
+
+# Create non-root user
+RUN addgroup -g 1001 -S streamuser && \
+    adduser -u 1001 -S streamuser -G streamuser
+
+# Set ownership
+RUN chown -R streamuser:streamuser /app
+
+# Switch to non-root user
+USER streamuser
+
+# Expose ports
+EXPOSE 3000 8080 1935 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
+# Start the server
+CMD ["node", "server.js"]
