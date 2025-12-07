@@ -35,6 +35,15 @@ StreamHub Pro is a professional-grade streaming studio that runs entirely in you
 - [Docker](https://www.docker.com/) & Docker Compose (for production)
 - Google Gemini API key (for AI features)
 
+### Environment variables
+
+Copy the example file and populate the required secrets before running the app:
+
+```bash
+cp .env.example .env
+# Edit .env with your GEMINI_API_KEY and database connection settings
+```
+
 ### Option 1: Docker (Recommended)
 
 ```bash

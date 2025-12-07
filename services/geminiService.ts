@@ -1,14 +1,14 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Ideally, this is initialized with the key from process.env, 
+// Ideally, this is initialized with the key from process.env,
 // but for this demo, we assume the environment is set up correctly.
 const getClient = () => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-        console.warn("API_KEY not found in environment variables.");
-        return null;
-    }
-    return new GoogleGenAI({ apiKey });
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("GEMINI_API_KEY not found in environment variables.");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey });
 };
 
 export const generateStreamMetadata = async (topic: string) => {
