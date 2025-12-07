@@ -40,9 +40,6 @@ RUN chown -R appuser:appgroup /usr/share/nginx/html && \
     touch /var/run/nginx.pid && \
     chown -R appuser:appgroup /var/run/nginx.pid
 
-# Switch to non-root user
-USER appuser
-
 # Expose port 8080 (GCP Cloud Run default)
 EXPOSE 8080
 
