@@ -50,6 +50,27 @@ This guide covers deploying StreamHub Pro to Google Cloud Platform using a three
    export SERVICE_NAME="streamhub"
    ```
 
+4. **Grant Cloud Run deployment permissions**
+   Ensure the identity performing deployments (for example, the Cloud Build
+   service account or a dedicated deployer service account) can act as the
+   Cloud Run runtime service account. This prevents `iam.serviceaccounts.actAs`
+   errors during `gcloud run deploy`.
+
+   ```bash
+   # Runtime service account for Cloud Run revisions
+   export CLOUD_RUN_SA="streamhub-run-sa@${PROJECT_ID}.iam.gserviceaccount.com"
+
+   # Allow Cloud Build's service account to deploy using the runtime SA
+   gcloud iam service-accounts add-iam-policy-binding "${CLOUD_RUN_SA}" \
+     --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+     --role="roles/iam.serviceAccountUser"
+
+   # If you deploy with a different service account, grant it the same role
+   gcloud iam service-accounts add-iam-policy-binding "${CLOUD_RUN_SA}" \
+     --member="serviceAccount:${CLOUD_RUN_SA}" \
+     --role="roles/iam.serviceAccountUser"
+   ```
+
 ---
 
 ## Option 1: Deploy to Cloud Run (Recommended for Scalability)
