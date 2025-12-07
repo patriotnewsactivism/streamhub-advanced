@@ -232,6 +232,26 @@ DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
+### Opening Pull Requests for Large Changes
+
+When a branch (for example, `backend-database-integration`) contains a very large diff (9k+ lines), break it into reviewable slices so GitHub can render the changes and reviewers can provide focused feedback.
+
+1. **Preview the size**
+   ```bash
+   git diff --stat main...backend-database-integration
+   ```
+2. **Split by concern** – separate backend, schema, and front-end updates into focused feature branches (e.g., `backend-db-schema`, `backend-api-handlers`, `frontend-db-hooks`).
+   ```bash
+   git checkout -b backend-db-schema main
+   git cherry-pick <hashes-for-schema-work>
+   git push origin backend-db-schema
+   ```
+3. **Open multiple PRs** – create one PR per focused branch. Reference the parent initiative in each description.
+4. **Keep follow-up patches small** – for remaining changes, repeat the cherry-pick process into additional branches until each PR is under a few thousand lines.
+5. **Link PRs together** – use GitHub’s “linked pull request” or issue references so reviewers see the sequence.
+
+This approach avoids GitHub’s diff rendering limits and shortens review cycles while keeping the original work intact on the source branch.
+
 ---
 
 ## Documentation
