@@ -1,87 +1,260 @@
-# StreamHub Pro 🎥
+# StreamHub Pro
 
-**StreamHub Pro** is a browser-based, professional live streaming studio designed to rival premium tools like OneStream and OBS. It allows content creators to broadcast to multiple destinations simultaneously, manage media assets, arrange dynamic layouts, and utilize AI for stream optimization—all from a modern web interface.
+**Professional browser-based live streaming studio** - A OneStream/OBS alternative that enables multi-destination broadcasting without complex desktop software.
 
-## 🚀 Key Features
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](./docker-compose.yml)
+[![React](https://img.shields.io/badge/React-19.2-61dafb?logo=react)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178c6?logo=typescript)](https://typescriptlang.org)
+[![License](https://img.shields.io/badge/License-MIT-green)](./LICENSE)
 
-### 1. Multi-Destination Streaming
-- **Manager:** Configure multiple RTMP endpoints (YouTube, Facebook, Twitch, or Custom).
-- **Control:** Toggle individual destinations on/off before or during the stream.
-- **Status:** Real-time indicators for connection status.
+---
 
-### 2. Advanced Composition Engine
-- **HTML5 Canvas Core:** Real-time mixing of webcam, screen share, and media files.
-- **Layouts:**
-  - **Solo:** Full-screen camera focus.
-  - **Screen Share:** Focus on content with the presenter hidden or minimized.
-  - **PIP (Picture-in-Picture):** Presenter overlaid on screen share/video.
-  - **Split:** Side-by-side view of presenter and content.
-  - **Newsroom:** Professional shoulder-view layout with custom backgrounds.
+## Overview
 
-### 3. Media Bin & Cloud Import
-- **Asset Management:** Upload and manage Images, Videos, and Audio tracks locally.
-- **Cloud Integration:** Import media directly via URL (supports direct links from S3, Dropbox, etc.).
-- **Overlays:** Toggle logos, lower thirds, or images on top of your video feed.
-- **Background Music:** Loop audio tracks with volume control.
+StreamHub Pro is a professional-grade streaming studio that runs entirely in your browser. Broadcast to YouTube, Facebook, Twitch, and custom RTMP endpoints simultaneously while managing media assets, selecting dynamic layouts, and leveraging AI for content optimization.
 
-### 4. AI Studio Assistant
-- **Powered by Gemini:** Integrated with Google's Gemini API.
-- **Metadata Generation:** Automatically generates viral-style Titles, Descriptions, and Hashtags based on your stream topic.
+### Key Features
 
-### 5. Notification Center
-- **Alerts:** Setup Email (`mailto`) and SMS (`sms`) triggers to notify followers when you go live.
-- **One-Click Share:** Generates pre-filled messages with your stream details.
+- **Multi-Destination Streaming** - Broadcast to unlimited platforms simultaneously
+- **5 Professional Layouts** - Solo, Screen Share, PIP, Split, and Newsroom modes
+- **Canvas-Based Compositor** - Real-time 30fps video mixing with HTML5 Canvas
+- **Media Asset Management** - Upload images, videos, and audio; import from cloud URLs
+- **AI-Powered Metadata** - Generate viral titles, descriptions, and hashtags with Google Gemini
+- **Professional Audio Mixer** - Independent volume control for mic, music, and video
+- **Local Recording** - Save streams locally as WebM without external services
+- **Plan-Based Features** - Free, Pro, and Business tiers with appropriate limits
+- **Mobile Responsive** - Full functionality on tablets and phones
 
-## 🛠 Tech Stack
+---
 
-- **Frontend:** React 19, TypeScript
-- **Styling:** Tailwind CSS
-- **Media Processing:** HTML5 Canvas API, MediaStream API
-- **AI:** @google/genai SDK
-- **Icons:** Lucide React
+## Quick Start
 
-## 📦 Installation & Setup
+### Prerequisites
 
-1. **Clone the repository**
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-3. **Configure Environment**
-   Ensure you have a valid Google Gemini API Key.
-   ```bash
-   export API_KEY="your_gemini_api_key"
-   ```
-4. **Run the application**
-   ```bash
-   npm start
-   ```
+- [Node.js](https://nodejs.org/) 18+ (for development)
+- [Docker](https://www.docker.com/) & Docker Compose (for production)
+- Google Gemini API key (for AI features)
 
-## 🎮 Usage Guide
+### Option 1: Docker (Recommended)
 
-1. **Permissions:** Upon launch, allow access to Camera and Microphone.
-2. **Setup Destinations:**
-   - Open the right sidebar.
-   - Click "Add" to configure YouTube, Twitch, etc.
-   - Enter your **Stream Key** and **Server URL** (provided by your platform).
-3. **Prepare Media:**
-   - Use the left sidebar to upload logos, intro videos, or background music.
-   - Use the AI Assistant to generate a title.
-4. **Select Layout:** Choose your visual style (e.g., Newsroom) from the bottom deck.
-5. **Go Live:** Click the "GO LIVE" button. 
+```bash
+# Clone the repository
+git clone https://github.com/your-org/streamhub-advanced.git
+cd streamhub-advanced
 
-## ⚠️ Browser Limitations (Important)
+# Start all services
+docker-compose up --build
 
-*   **RTMP Protocol:** Browsers cannot natively speak RTMP (TCP). In a production environment, this application requires a lightweight backend server (Node-Media-Server or FFMPEG) to transcode the browser's WebRTC/Canvas stream to RTMP.
-*   **Permissions:** Screen sharing requires specific browser permissions and must be initiated by a user gesture.
+# Access the application
+open http://localhost:8080
+```
 
-## 🤝 Contributing
+### Option 2: Development Mode
 
-1. Fork the Project
-2. Create your Feature Branch
-3. Commit your Changes
-4. Push to the Branch
+```bash
+# Install frontend dependencies
+npm install
+
+# Set environment variables
+export VITE_GEMINI_API_KEY="your-gemini-api-key"
+
+# Start development server
+npm run dev
+
+# Access at http://localhost:3000
+```
+
+---
+
+## Architecture
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Browser (React 19 + Vite)                                 │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐   │
+│  │   Studio    │ │   Canvas    │ │  Destination        │   │
+│  │  Component  │ │ Compositor  │ │     Manager         │   │
+│  └─────────────┘ └─────────────┘ └─────────────────────┘   │
+└────────────────────────────────────────────────────────────┘
+                         │ WebSocket / HTTP
+                         ▼
+┌────────────────────────────────────────────────────────────┐
+│  Backend (Node.js + Express)                               │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────┐   │
+│  │  REST API   │ │    RTMP     │ │    FFmpeg           │   │
+│  │  :3000      │ │   :1935     │ │    Transcoder       │   │
+│  └─────────────┘ └─────────────┘ └─────────────────────┘   │
+└────────────────────────────────────────────────────────────┘
+                         │
+                         ▼
+┌───────────────────┐  ┌───────────────────┐
+│    PostgreSQL     │  │      Redis        │
+│      :5432        │  │      :6379        │
+└───────────────────┘  └───────────────────┘
+```
+
+---
+
+## Usage Guide
+
+### 1. Initial Setup
+
+1. **Grant Permissions** - Allow camera and microphone access when prompted
+2. **Add Destinations** - Open the left sidebar and configure your streaming platforms
+3. **Enter Stream Keys** - Paste your YouTube/Twitch/Facebook stream keys
+
+### 2. Prepare Your Stream
+
+1. **Upload Media** - Use the right sidebar to add logos, intro videos, or background music
+2. **Select Layout** - Choose from Solo, PIP, Split, Screen Share, or Newsroom
+3. **Generate Metadata** - Enter your topic and let AI create titles and hashtags
+
+### 3. Go Live
+
+1. **Toggle Destinations** - Enable the platforms you want to broadcast to
+2. **Click GO LIVE** - Start broadcasting to all enabled destinations
+3. **Monitor Duration** - Track your stream time in the header
+4. **End Stream** - Click END STREAM and download your local recording
+
+---
+
+## Layouts
+
+| Layout | Description | Best For |
+|--------|-------------|----------|
+| **Solo** | Full-screen camera | Vlogs, talking head |
+| **Screen Share** | Full-screen content | Tutorials, demos |
+| **PIP** | Content + draggable presenter | Gaming, presentations |
+| **Split** | Side-by-side view | Interviews, reactions |
+| **Newsroom** | Professional shoulder view | News, podcasts |
+
+---
+
+## Docker Services
+
+| Service | Port | Description |
+|---------|------|-------------|
+| **frontend** | 8080 | React app served by Nginx |
+| **backend** | 3000 | Express API |
+| **backend** | 1935 | RTMP ingest server |
+| **backend** | 8000 | HLS output server |
+| **redis** | 6379 | Session cache |
+| **postgres** | 5432 | User data storage |
+
+---
+
+## Configuration
+
+### Environment Variables
+
+```bash
+# Frontend (Vite)
+VITE_GEMINI_API_KEY=your-gemini-api-key
+
+# Backend (docker-compose.yml)
+NODE_ENV=production
+REDIS_HOST=redis
+REDIS_PORT=6379
+DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
+```
+
+### Plan Limits
+
+| Plan | Destinations | Cloud VM | Watermark |
+|------|-------------|----------|-----------|
+| Free | 1 | No | Yes |
+| Free Trial | 99 | Yes | No |
+| Pro | 99 | Yes | No |
+| Business | 99 | Yes | No |
+| Admin | 999 | Yes | No |
+
+---
+
+## Technology Stack
+
+### Frontend
+- **React 19** - Latest React with hooks
+- **TypeScript 5.8** - Type safety
+- **Vite 6** - Fast build tooling
+- **Tailwind CSS** - Utility-first styling
+- **Lucide React** - Icon library
+- **React Router DOM 7** - Client-side routing
+
+### Backend
+- **Node.js 20** - JavaScript runtime
+- **Express 4** - Web framework
+- **Node-Media-Server** - RTMP/HLS server
+- **FFmpeg** - Video transcoding
+- **WebSocket (ws)** - Real-time communication
+
+### Data Layer
+- **PostgreSQL 15** - Relational database
+- **Redis 7** - Cache and sessions
+
+### Infrastructure
+- **Docker** - Containerization
+- **Nginx** - Reverse proxy
+- **Terraform** - Infrastructure as Code
+
+---
+
+## Project Status
+
+### Completed
+- Canvas-based video compositor with 5 layouts
+- Media asset management with cloud import
+- Audio mixer with Web Audio API
+- AI metadata generation (Gemini)
+- Destination manager for RTMP endpoints
+- Local recording functionality
+- Mobile responsive design
+- Docker deployment setup
+
+### In Progress
+- WebRTC to RTMP bridge implementation
+- User authentication system
+- Database integration for persistence
+
+### Planned
+- OAuth integrations (YouTube, Twitch)
+- Scheduled streaming
+- Chat aggregation overlay
+- Green screen (chroma key)
+- Virtual backgrounds
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ---
-*Built for the AI Studio Era.*
+
+## Documentation
+
+- [CLAUDE.md](./CLAUDE.md) - Development guide for AI assistants
+- [PLAN.md](./PLAN.md) - Product roadmap and vision
+- [TODO.md](./TODO.md) - Prioritized task list
+- [GCP_DEPLOYMENT.md](./GCP_DEPLOYMENT.md) - Google Cloud deployment
+- [DOCKER_README.md](./DOCKER_README.md) - Docker setup guide
+
+---
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+---
+
+## Support
+
+- **Issues:** [GitHub Issues](https://github.com/your-org/streamhub-advanced/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/your-org/streamhub-advanced/discussions)
+
+---
+
+*Built for the creator economy.*
