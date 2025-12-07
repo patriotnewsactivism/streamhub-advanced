@@ -93,9 +93,7 @@ steps:
 # ==========================================
 # Options & Config
 # ==========================================
-# logsBucket: 'gs://your-bucket-name'  <-- CORRECT LOCATION (Optional, currently removed)
-options:
-  logging: CLOUD_LOGGING_ONLY  # <-- logsBucket cannot be inside here
+# logsBucket: 'gs://streamhub-pro' 
 
 substitutions:
   _REGION: us-west1
