@@ -120,4 +120,4 @@ images:
   - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO_NAME}/${_FRONTEND_SERVICE_NAME}:latest'
 
 options:
-  logging: CLOUD_LOGGING_ONLY
+  logsBucket: 'gs://streamhub-pro'
