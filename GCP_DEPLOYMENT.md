@@ -401,6 +401,45 @@ gcloud monitoring uptime-checks create streamhub-frontend \
   --path=/
 ```
 
+### Verify Cloud Run ↔️ Cloud SQL/Redis connectivity (VM readiness)
+
+1. **Confirm runtime service account bindings** to avoid `iam.serviceaccounts.actAs` failures when Cloud Build deploys:
+   ```bash
+   gcloud iam service-accounts add-iam-policy-binding "${CLOUD_RUN_SA}" \
+     --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+     --role="roles/iam.serviceAccountUser"
+   ```
+
+2. **Attach a VPC connector to backend deployments** so the container (or any Compute Engine VM you launch for FFmpeg offload) can reach private IP services:
+   ```bash
+   gcloud run services update streamhub-backend \
+     --region ${REGION} \
+     --vpc-connector ${VPC_CONNECTOR_NAME} \
+     --vpc-egress all-traffic
+   ```
+
+3. **Verify Cloud SQL socket reachability** from the running container or VM:
+   ```bash
+   INSTANCE="${PROJECT_ID}:${REGION}:${INSTANCE_NAME}"
+   PGPASSWORD="$DB_PASS" psql \
+     -h "/cloudsql/${INSTANCE}" \
+     -U "${DB_USER}" \
+     -d "${DB_NAME}" \
+     -c 'SELECT NOW();'
+   ```
+
+4. **Run the schema job after deployments** to keep Cloud SQL in sync with the latest `init.sql` in the repo:
+   ```bash
+   gcloud builds submit --config cloudbuild-init.yaml \
+     --substitutions _INSTANCE_CONNECTION_NAME=${INSTANCE},_DB_USER=${DB_USER},_DB_NAME=${DB_NAME}
+   ```
+
+5. **Smoke-test the VM networking path** by curling the backend from inside the Compute Engine instance that handles RTMP/FFmpeg relay:
+   ```bash
+   curl -f http://localhost:3000/health
+   curl -f http://localhost:3000/api/test-db
+   ```
+
 ---
 
 ## Cost Optimization
