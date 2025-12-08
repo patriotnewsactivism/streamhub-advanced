@@ -30,11 +30,11 @@ services:
       dockerfile: Dockerfile.backend
     container_name: streamhub-backend
     ports:
-      - "3000:3000"   # Express API
-      - "8081:8080"   # WebSocket signaling
+      - "3000:3000"   # Express API & WebSocket signaling
       - "1935:1935"   # RTMP
       - "8000:8000"   # HLS output
     environment:
+      - PORT=3000
       - NODE_ENV=production
       - REDIS_HOST=redis
       - REDIS_PORT=6379

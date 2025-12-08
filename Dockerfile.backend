@@ -33,8 +33,8 @@ RUN chown -R streamuser:streamuser /app
 # Switch to non-root user
 USER streamuser
 
-# Expose HTTP API port (Cloud Run requires single port)
-EXPOSE 8080
+# Expose HTTP API port (overridden by PORT env; Cloud Run sets PORT=8080)
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \

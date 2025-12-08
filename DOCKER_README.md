@@ -20,7 +20,7 @@ This document provides a quick start guide for deploying StreamHub Pro using Doc
 │                     APPLICATION TIER                         │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │   Backend (Node.js + FFmpeg + RTMP)                │   │
-│  │   Ports: 3000 (API), 8080 (WS), 1935 (RTMP)       │   │
+│  │   Ports: 3000 (API+WS), 1935 (RTMP)       │   │
 │  │   Dockerfile: ./Dockerfile.backend                  │   │
 │  └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
@@ -53,7 +53,7 @@ docker-compose up --build
 Frontend:  http://localhost:8080
 Backend:   http://localhost:3000
 RTMP:      rtmp://localhost:1935
-WebSocket: ws://localhost:8081
+WebSocket: ws://localhost:3000
 ```
 
 ### 2. Production Deployment
@@ -85,7 +85,7 @@ docker-compose down
 
 ### Backend Service
 - **API URL**: http://localhost:3000
-- **WebSocket**: ws://localhost:8081
+- **WebSocket**: ws://localhost:3000
 - **RTMP**: rtmp://localhost:1935
 - **HLS**: http://localhost:8000
 - **Technology**: Node.js + FFmpeg + Node-Media-Server
@@ -111,7 +111,7 @@ Create a `.env` file in the root directory:
 # Frontend
 NODE_ENV=production
 VITE_BACKEND_URL=http://localhost:3000
-VITE_WS_URL=ws://localhost:8081
+VITE_WS_URL=ws://localhost:3000
 VITE_GEMINI_API_KEY=your_gemini_api_key
 
 # Backend
@@ -120,7 +120,7 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 RTMP_PORT=1935
 API_PORT=3000
-WS_PORT=8080
+WS_PORT=3000
 
 # Database
 POSTGRES_DB=streamhub

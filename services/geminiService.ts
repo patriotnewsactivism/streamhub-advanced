@@ -1,11 +1,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Ideally, this is initialized with the key from process.env,
-// but for this demo, we assume the environment is set up correctly.
 const getClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
+  // Vite exposes client-safe env vars with VITE_ prefix; keep process.env fallback for SSR/tools.
+  const apiKey = import.meta.env?.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
-    console.warn("GEMINI_API_KEY not found in environment variables.");
+    console.warn("GEMINI_API_KEY/VITE_GEMINI_API_KEY not found in environment variables.");
     return null;
   }
   return new GoogleGenAI({ apiKey });

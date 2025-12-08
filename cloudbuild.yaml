@@ -38,16 +38,19 @@ steps:
       - '--allow-unauthenticated'
       - '--service-account'
       - '${_CLOUD_RUN_SERVICE_ACCOUNT}'
+      - '--add-cloudsql-instances'
+      - '${_INSTANCE_CONNECTION_NAME}'
       - '--set-secrets'
       - 'DB_PASS=streamhub-db-password:latest'
       - '--set-env-vars'
-      - 'NODE_ENV=production,INSTANCE_CONNECTION_NAME=${_INSTANCE_CONNECTION_NAME},DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},REDIS_HOST=${_REDIS_HOST},REDIS_PORT=${_REDIS_PORT}'
+      - 'NODE_ENV=production,PORT=8080,ENABLE_RTMP=false,INSTANCE_CONNECTION_NAME=${_INSTANCE_CONNECTION_NAME},DB_USER=${_DB_USER},DB_NAME=${_DB_NAME},REDIS_HOST=${_REDIS_HOST},REDIS_PORT=${_REDIS_PORT}'
 
   # ==========================================
   # 3. Build & Push Frontend
   # ==========================================
-  - name: 'bash'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'Configure Frontend Env'
+    entrypoint: bash
     script: |
       echo "VITE_BACKEND_URL=${_VITE_BACKEND_URL}" > .env
       echo "VITE_GEMINI_API_KEY=${_VITE_GEMINI_API_KEY}" >> .env

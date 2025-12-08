@@ -7,7 +7,7 @@ const redis = require('redis');
 require('dotenv').config();
 
 // Environment configuration
-const PORT = process.env.PORT || 8080;
+const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // PostgreSQL Connection Setup for Cloud SQL
@@ -27,11 +27,11 @@ const pool = new Pool(pgConfig);
 
 // Test database connection
 pool.on('connect', () => {
-  console.log('✅ Connected to PostgreSQL database');
+  console.log('[db] Connected to PostgreSQL database');
 });
 
 pool.on('error', (err) => {
-  console.error('❌ PostgreSQL connection error:', err);
+  console.error('[db] PostgreSQL connection error:', err);
 });
 
 // Redis Client Setup (optional - for session management)
@@ -45,11 +45,11 @@ if (process.env.REDIS_HOST) {
   });
 
   redisClient.on('connect', () => {
-    console.log('✅ Connected to Redis');
+    console.log('[redis] Connected to Redis');
   });
 
   redisClient.on('error', (err) => {
-    console.error('❌ Redis connection error:', err);
+    console.error('[redis] Redis connection error:', err);
   });
 
   redisClient.connect().catch(console.error);
@@ -416,22 +416,22 @@ const ENABLE_RTMP = process.env.ENABLE_RTMP === 'true';
 if (ENABLE_RTMP) {
   const nms = new NodeMediaServer(nmsConfig);
   nms.run();
-  console.log('🎥 RTMP server started on port 1935');
-  console.log('📺 HLS server started on port 8000');
+  console.log('[rtmp] RTMP server started on port 1935');
+  console.log('[rtmp] HLS server started on port 8000');
 } else {
-  console.log('ℹ️  RTMP server disabled (set ENABLE_RTMP=true to enable)');
+  console.log('[rtmp] RTMP server disabled (set ENABLE_RTMP=true to enable)');
 }
 
 // WebSocket Server for Real-time Signaling
 const wss = new WebSocket.Server({ noServer: true });
 
 wss.on('connection', (ws, req) => {
-  console.log('🔌 Client connected via WebSocket');
+  console.log('[ws] Client connected via WebSocket');
 
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
-      console.log('📨 Received:', data.type);
+      console.log('[ws] Received:', data.type);
 
       // Handle different message types
       switch (data.type) {
@@ -454,7 +454,7 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
-    console.log('🔌 Client disconnected');
+    console.log('[ws] Client disconnected');
   });
 
   ws.on('error', (error) => {
@@ -464,10 +464,10 @@ wss.on('connection', (ws, req) => {
 
 // Start Express Server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log('🚀 StreamHub Backend Server Started');
-  console.log(`📡 HTTP API running on port ${PORT}`);
-  console.log(`🌍 Environment: ${NODE_ENV}`);
-  console.log(`💾 Database: ${isCloudSQL ? 'Cloud SQL' : 'Local PostgreSQL'}`);
+  console.log('[server] StreamHub Backend Server Started');
+  console.log(`[server] HTTP API running on port ${PORT}`);
+  console.log(`[server] Environment: ${NODE_ENV}`);
+  console.log(`[server] Database: ${isCloudSQL ? 'Cloud SQL' : 'Local PostgreSQL'}`);
 });
 
 // Integrate WebSocket with HTTP server
