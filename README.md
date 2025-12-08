@@ -41,7 +41,7 @@ Copy the example file and populate the required secrets before running the app:
 
 ```bash
 cp .env.example .env
-# Edit .env with your GEMINI_API_KEY and database connection settings
+# Edit .env with your VITE_GEMINI_API_KEY and database connection settings
 ```
 
 ### Option 1: Docker (Recommended)
@@ -66,6 +66,7 @@ npm install
 
 # Set environment variables
 export VITE_GEMINI_API_KEY="your-gemini-api-key"
+export VITE_BACKEND_URL="http://localhost:3000"
 
 # Start development server
 npm run dev
