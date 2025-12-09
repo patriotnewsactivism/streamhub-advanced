@@ -32,9 +32,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900/80 backdrop-blur-md border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex flex-col items-start cursor-pointer" onClick={() => window.scrollTo(0,0)}>
-            <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-red-500 via-white to-blue-500 bg-clip-text text-transparent drop-shadow-lg" style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.05em' }}>ChatScream</span>
-            <span className="text-[10px] font-medium text-gray-400 tracking-widest uppercase -mt-1">by We The People News</span>
+          <div className="flex flex-col items-start cursor-pointer gap-1" onClick={() => window.scrollTo(0,0)}>
+            <span className="brand-title text-3xl md:text-4xl">ChatScream</span>
+            <span className="brand-subtitle text-[11px] text-gray-300">by We The People News</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
