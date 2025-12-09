@@ -1,6 +1,6 @@
-# CLAUDE.md - StreamHub Pro Development Guide
+# CLAUDE.md
 
-> This file provides comprehensive context for Claude Code to understand and work with this codebase effectively.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -51,9 +51,12 @@ streamhub-advanced/
 │   ├── CloudImportModal.tsx      # Cloud import dialog
 │   └── AuthModal.tsx             # Authentication modal
 ├── services/
-│   └── geminiService.ts          # Google Gemini AI integration
+│   ├── geminiService.ts          # Google Gemini AI integration
+│   └── apiClient.ts              # Backend API client with health checks
 ├── backend/
-│   └── package.json              # Backend dependencies (NO server.js yet!)
+│   ├── server.js                 # Express + RTMP + WebSocket server (499 lines)
+│   ├── package.json              # Backend dependencies
+│   └── init-db.js                # Database initialization script
 ├── App.tsx                       # Main app routing
 ├── index.tsx                     # React DOM entry point
 ├── types.ts                      # TypeScript type definitions
@@ -131,38 +134,94 @@ streamhub-advanced/
 
 ## Common Development Commands
 
+### Frontend Development
 ```bash
-# Frontend Development
 npm install                    # Install dependencies
-npm run dev                    # Start Vite dev server (port 3000)
+npm run dev                    # Start Vite dev server (default port 5173)
 npm run build                  # Production build to dist/
 npm run preview                # Preview production build
+```
 
-# Docker Development
+### Backend Development
+```bash
+cd backend
+npm install                    # Install backend dependencies
+npm run dev                    # Start with nodemon (auto-reload)
+npm start                      # Start production server
+npm run init-db                # Run database initialization script
+```
+
+### Docker Development
+```bash
 docker-compose up --build      # Build and start all services
 docker-compose up -d           # Start in background
 docker-compose logs -f         # Stream all logs
+docker-compose logs -f backend # Stream backend logs only
 docker-compose down            # Stop and remove containers
+docker-compose down -v         # Stop and remove volumes (clears database)
 
 # Individual Services
 docker-compose up frontend     # Start frontend only
 docker-compose up backend      # Start backend only
 docker-compose up postgres     # Start database only
+docker-compose restart backend # Restart backend after code changes
+```
+
+### Common Development Workflows
+
+#### Starting Fresh
+```bash
+docker-compose down -v                    # Clear everything
+docker-compose up --build -d postgres     # Start database first
+docker-compose up --build backend         # Build and start backend
+# In another terminal:
+curl -X POST http://localhost:3000/api/init-database
+docker-compose up frontend                # Start frontend
+```
+
+#### Backend Development Cycle
+```bash
+# Edit backend/server.js
+docker-compose restart backend            # Restart to apply changes
+docker-compose logs -f backend            # Watch logs
+```
+
+#### Frontend Development Cycle
+```bash
+npm run dev                               # Use Vite dev server (hot reload)
+# Access at http://localhost:5173
+# Changes auto-reload in browser
 ```
 
 ---
 
 ## Environment Variables
 
+### Frontend (.env or docker-compose)
 ```bash
-# Frontend (via Vite)
-VITE_GEMINI_API_KEY=<your-key>     # Google Gemini API key
+VITE_GEMINI_API_KEY=your-gemini-api-key    # Google Gemini API for metadata generation
+VITE_BACKEND_URL=http://localhost:3000     # Backend API base URL (dev mode)
+```
 
-# Backend (via docker-compose)
-NODE_ENV=production
-REDIS_HOST=redis
-REDIS_PORT=6379
+### Backend (docker-compose.yml or Cloud Run)
+```bash
+# Server Configuration
+PORT=3000                                   # Express server port
+NODE_ENV=production                         # Environment (development/production)
+ENABLE_RTMP=true                            # Enable RTMP server (default: false for Cloud Run)
+
+# Database (Local)
 DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
+
+# Database (Cloud SQL)
+INSTANCE_CONNECTION_NAME=project:region:instance
+DB_USER=streamhub
+DB_PASS=your-secure-password
+DB_NAME=streamhub
+
+# Redis
+REDIS_HOST=redis                            # Redis hostname (use 'redis' in Docker)
+REDIS_PORT=6379                             # Redis port
 ```
 
 ---
@@ -200,16 +259,18 @@ DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
 | Mobile Responsive | DONE | Bottom tab navigation |
 | Authentication | MOCK | Uses local state, no backend |
 
-### Backend: ~25% Complete
+### Backend: ~65% Complete
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Express Health Check | DONE | /health endpoint |
-| Node-Media-Server | DONE | RTMP/HLS config |
-| WebSocket Server | PARTIAL | Basic setup only |
-| Database Connection | NOT DONE | pg package installed, no code |
-| Redis Integration | NOT DONE | redis package installed |
+| Node-Media-Server | DONE | RTMP/HLS config on port 1935/8000 |
+| WebSocket Server | DONE | Real-time signaling implemented |
+| Database Connection | DONE | PostgreSQL with Cloud SQL support |
+| Redis Integration | DONE | Session cache client configured |
+| CRUD API Endpoints | DONE | Users, destinations, sessions, analytics |
+| Database Initialization | DONE | POST /api/init-database endpoint |
 | WebRTC→RTMP Bridge | NOT DONE | Core functionality missing |
-| Authentication | NOT DONE | No JWT/session handling |
+| Authentication | PARTIAL | No JWT/session handling yet |
 | Multi-platform Push | NOT DONE | No FFmpeg relay logic |
 
 ### Infrastructure: ~70% Complete
@@ -229,8 +290,8 @@ DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
 1. **Audio Sync Drift** - Canvas and HTML5 video can drift; AudioContext needs tight coupling
 2. **CORS on Cloud Import** - External URLs taint the canvas; needs proxy or CORS headers
 3. **Browser Performance** - Heavy video decoding causes lag on low-end hardware
-4. **No Real Streaming** - Currently simulates RTMP connection; backend bridge required
-5. **Backend Auto-generated** - `server.js` is created at Docker build time, not in source
+4. **No Real Streaming** - Frontend simulates RTMP connection; WebRTC→RTMP bridge required
+5. **RTMP Disabled by Default** - Backend requires `ENABLE_RTMP=true` env var for Cloud Run compatibility
 
 ---
 
@@ -269,22 +330,140 @@ setTimeout(() => {
 
 ---
 
+## Key Architectural Decisions
+
+### Why Canvas-Based Compositing?
+The HTML5 Canvas approach allows:
+- **Real-time mixing** of multiple video sources at 30fps without backend processing
+- **Zero-latency preview** - what you see is exactly what streams
+- **Browser-native** - no plugins or desktop software required
+- **Flexible layouts** - drag-and-drop PIP positioning with pixel-perfect control
+
+Trade-off: Canvas can be CPU-intensive on low-end devices; consider WebGPU in future.
+
+### Why Node-Media-Server?
+- **Battle-tested** RTMP server with 5k+ GitHub stars
+- **FFmpeg integration** for HLS transcoding built-in
+- **Event hooks** for stream lifecycle (prePublish, donePublish, etc.)
+- **Lightweight** compared to alternatives like Wowza or Red5
+
+Trade-off: Limited to Node.js ecosystem; C-based servers like SRS might be more performant.
+
+### Why PostgreSQL + Redis?
+- **PostgreSQL** for relational data (users, destinations, sessions) with JSONB support for flexible metadata
+- **Redis** for ephemeral session state and real-time viewer counts
+- **Cloud SQL compatibility** - easy migration to managed services
+
+### Frontend-Backend Communication Pattern
+1. **REST API** - CRUD operations for persistent data (users, destinations)
+2. **WebSocket** - Real-time signaling for stream start/stop events
+3. **RTMP Ingest** - Browser captures → WebRTC → (future) → RTMP server
+4. **HLS Playback** - RTMP → FFmpeg → HLS for preview
+
+Current gap: WebRTC→RTMP bridge not yet implemented.
+
+---
+
+## Backend API Endpoints
+
+The backend server (`backend/server.js`) exposes the following REST API:
+
+### Health & Database
+- `GET /health` - Server health check with database status
+- `GET /api/test-db` - Test database connectivity
+- `POST /api/init-database` - Initialize database schema (one-time setup)
+
+### Users
+- `GET /api/users` - List all users
+- `POST /api/users` - Create user (body: `{email, username}`)
+
+### Destinations
+- `GET /api/users/:userId/destinations` - Get user's streaming destinations
+- `POST /api/users/:userId/destinations` - Create destination (body: `{platform, name, stream_key, stream_url}`)
+- `PATCH /api/destinations/:id` - Update destination status (body: `{is_active}`)
+- `DELETE /api/destinations/:id` - Delete destination
+
+### Stream Sessions
+- `GET /api/users/:userId/sessions` - Get user's stream history (last 50)
+- `POST /api/sessions` - Create stream session (body: `{user_id, title, description, metadata}`)
+- `PATCH /api/sessions/:id/end` - End active stream session
+
+### WebSocket Messages
+- `stream_start` → receives `stream_started`
+- `stream_stop` → receives `stream_stopped`
+
+---
+
 ## When Adding Features
 
-1. **New Layouts:** Edit `CanvasCompositor.tsx` draw loop and add to `LayoutMode` enum
+1. **New Layouts:** Edit `CanvasCompositor.tsx` draw loop and add to `LayoutMode` enum in `types.ts`
 2. **New Media Types:** Update `MediaType` in `types.ts`, handle in `MediaBin.tsx`
-3. **New Destinations:** Extend `Platform` enum and `DestinationManager.tsx` presets
-4. **Backend Endpoints:** Create actual `backend/server.js` file (currently auto-generated)
-5. **Database Changes:** Update `init.sql` and restart postgres container
+3. **New Destinations:** Extend `Platform` enum in `types.ts` and `DestinationManager.tsx` presets
+4. **Backend Endpoints:** Add routes to `backend/server.js` following existing CRUD patterns
+5. **Database Changes:** Update `init.sql` and restart postgres container, or use `/api/init-database`
+
+---
+
+## Troubleshooting
+
+### Backend Won't Start
+```bash
+# Check if PostgreSQL is running
+docker-compose ps postgres
+docker-compose logs postgres
+
+# Check if port 3000 is already in use
+lsof -i :3000
+
+# Reset database
+docker-compose down -v
+docker-compose up postgres
+curl -X POST http://localhost:3000/api/init-database
+```
+
+### Frontend Can't Connect to Backend
+```bash
+# Verify backend is running
+curl http://localhost:3000/health
+
+# Check VITE_BACKEND_URL is set correctly
+echo $VITE_BACKEND_URL
+
+# Check browser console for CORS errors
+# If CORS error: backend has CORS enabled, check URL matches exactly
+```
+
+### Database Connection Issues
+```bash
+# Test database connectivity
+curl http://localhost:3000/api/test-db
+
+# Check PostgreSQL logs
+docker-compose logs postgres | grep ERROR
+
+# Verify credentials match between docker-compose.yml and backend/server.js
+```
+
+### RTMP Not Working
+```bash
+# Ensure ENABLE_RTMP=true is set
+docker-compose logs backend | grep RTMP
+
+# Check if port 1935 is accessible
+telnet localhost 1935
+
+# Note: RTMP is disabled by default for Cloud Run compatibility
+```
 
 ---
 
 ## Testing Approach
 
-Currently no test infrastructure exists. Recommended setup:
-- **Frontend:** Vitest + React Testing Library
-- **Backend:** Jest + Supertest
-- **E2E:** Playwright or Cypress
+Currently no automated test infrastructure exists. Recommended setup:
+- **Frontend:** Vitest + React Testing Library + Testing Playground
+- **Backend:** Jest + Supertest for API endpoint testing
+- **E2E:** Playwright for full streaming workflow tests
+- **Load Testing:** k6 for RTMP connection stress testing
 
 ---
 
@@ -305,10 +484,40 @@ See `GCP_DEPLOYMENT.md` for full guide:
 
 ---
 
+## Backend Database Connection
+
+The backend supports both local PostgreSQL and Google Cloud SQL:
+
+### Local Development (Docker Compose)
+```bash
+DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
+```
+
+### Cloud Run (GCP)
+```bash
+INSTANCE_CONNECTION_NAME=project:region:instance
+DB_USER=streamhub
+DB_PASS=your-password
+DB_NAME=streamhub
+```
+
+The server automatically detects Cloud SQL via the `INSTANCE_CONNECTION_NAME` environment variable and connects using Unix sockets at `/cloudsql/...`.
+
+### Initializing the Database
+
+After first deployment or when schema changes:
+```bash
+curl -X POST http://localhost:3000/api/init-database
+```
+
+This creates all tables, indexes, triggers, and sample data.
+
+---
+
 ## Priority Next Steps
 
-1. **Create actual `backend/server.js`** - Replace auto-generated stub
-2. **Implement WebRTC→RTMP bridge** - The core streaming functionality
-3. **Add authentication** - JWT or session-based
-4. **Connect database** - User persistence, destination storage
-5. **FFmpeg relay logic** - Multi-platform RTMP push
+1. **Implement WebRTC→RTMP bridge** - The core streaming functionality (most critical)
+2. **Connect frontend to backend API** - Replace mock authentication with real endpoints
+3. **Add JWT authentication** - Secure API endpoints with token-based auth
+4. **FFmpeg relay logic** - Multi-platform RTMP push from single ingest
+5. **Enable RTMP in production** - Configure Cloud Run or separate VM for RTMP service

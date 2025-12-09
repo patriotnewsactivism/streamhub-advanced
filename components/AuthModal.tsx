@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { User, UserPlan } from '../types';
 import { X, Lock, Mail, User as UserIcon, CheckCircle, ShieldAlert, Zap } from 'lucide-react';
+import authService from '../services/authService';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -20,65 +21,63 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      let user: User;
 
-      if (email.toLowerCase() === 'admin@streamhub.com' && password === 'password') {
-        const adminUser: User = {
-          id: 'admin-001',
-          name: 'Master Admin',
-          email: 'admin@streamhub.com',
-          plan: 'admin',
-          cloudHoursUsed: 0,
-          cloudHoursLimit: Infinity
-        };
-        onAuthSuccess(adminUser);
-        return;
-      }
-
-      // Login Flow
       if (mode === 'login') {
-         if (email && password) {
-             const returningUser: User = {
-                 id: 'user-returning',
-                 name: 'Streamer Pro',
-                 email: email,
-                 plan: 'pro',
-                 cloudHoursUsed: 1.2,
-                 cloudHoursLimit: 5
-             };
-             onAuthSuccess(returningUser);
-         } else {
-             setError("Invalid credentials");
-         }
-      } 
-      // Signup Flow (Defaults to Pro Trial)
-      else {
-        if (!email || !password || !name) {
-          setError("All fields are required.");
+        // Real login
+        if (!email || !password) {
+          setError("Email and password are required");
+          setLoading(false);
           return;
         }
-        
-        const trialEndDate = new Date();
-        trialEndDate.setDate(trialEndDate.getDate() + 7);
 
-        const newUser: User = {
-          id: `user-${Date.now()}`,
-          name: name,
-          email: email,
-          plan: 'free_trial',
-          trialEndDate: trialEndDate.toISOString(),
-          cloudHoursUsed: 0,
-          cloudHoursLimit: 5
-        };
-        onAuthSuccess(newUser);
+        user = await authService.login({ email, password });
+      } else {
+        // Real registration
+        if (!email || !password || !name) {
+          setError("All fields are required");
+          setLoading(false);
+          return;
+        }
+
+        if (password.length < 8) {
+          setError("Password must be at least 8 characters");
+          setLoading(false);
+          return;
+        }
+
+        user = await authService.register({
+          email,
+          username: name,
+          password,
+        });
       }
-    }, 1000);
+
+      // Success - call the callback
+      onAuthSuccess({
+        ...user,
+        username: user.username,
+        cloudHoursUsed: 0,
+        cloudHoursLimit: user.plan === 'admin' ? Infinity : 5,
+      });
+
+      // Reset form
+      setEmail('');
+      setPassword('');
+      setName('');
+      onClose();
+    } catch (err: any) {
+      console.error('Authentication error:', err);
+      setError(err.message || 'Authentication failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Helper for Demo Buttons

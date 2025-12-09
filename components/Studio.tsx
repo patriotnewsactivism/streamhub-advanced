@@ -21,10 +21,12 @@ import NotificationPanel from './NotificationPanel';
 import CloudVMManager from './CloudVMManager';
 import AudioMixer from './AudioMixer';
 import { generateStreamMetadata } from '../services/geminiService';
-import { 
-  Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square, 
-  AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon, 
-  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu, Wifi 
+import streamingService from '../services/streamingService';
+import authService from '../services/authService';
+import {
+  Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square,
+  AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon,
+  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu, Wifi
 } from 'lucide-react';
 
 interface StudioProps {
@@ -288,7 +290,7 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
 
   // --- STREAMING LOGIC ---
 
-  const startBroadcasting = () => {
+  const startBroadcasting = async () => {
       if (!canvasRef.current || !destNodeRef.current) {
           alert("Studio not ready. Please wait a moment.");
           return;
@@ -303,10 +305,10 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
       // 1. Prepare Master Stream (Video + Mixed Audio)
       const canvasStream = canvasRef.current.getStream();
       const audioTrack = destNodeRef.current.stream.getAudioTracks()[0];
-      
+
       const tracks = [...canvasStream.getVideoTracks()];
       if (audioTrack) tracks.push(audioTrack);
-      
+
       const masterStream = new MediaStream(tracks);
 
       // 2. Start MediaRecorder (Records to local blob for verification)
@@ -324,53 +326,93 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
           return;
       }
 
-      // 3. UI Updates - Simulate Connection Handshake
-      setAppState(prev => ({ ...prev, isStreaming: true, streamDuration: 0 }));
-      
-      // Initial "Connecting" state
-      setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'connecting' }) : d));
+      // 3. Start real streaming to backend
+      try {
+          setAppState(prev => ({ ...prev, isStreaming: true, streamDuration: 0 }));
+          setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'connecting' }) : d));
 
-      // Simulate handshake latency (2-4 seconds)
-      setTimeout(() => {
-          setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'live' }) : d));
-          setShowNotificationToast("You are LIVE! Broadcasting to " + activeDestinations.map(d => d.platform).join(', '));
-      }, 3000);
+          const streamResponse = await streamingService.startStream(
+              masterStream,
+              activeDestinations,
+              generatedInfo?.title || 'Untitled Stream',
+              generatedInfo?.description || ''
+          );
 
-      // 4. Start Timer
-      streamIntervalRef.current = setInterval(() => {
-          setAppState(prev => ({ ...prev, streamDuration: prev.streamDuration + 1 }));
-      }, 1000);
+          console.log('Stream started:', streamResponse);
+
+          // Update destination statuses based on backend response
+          setDestinations(prev => prev.map(d => {
+              const backendDest = streamResponse.destinations.find(bd => bd.platform === d.platform);
+              if (backendDest) {
+                  return { ...d, status: backendDest.status as any };
+              }
+              return d;
+          }));
+
+          // Start duration timer
+          streamIntervalRef.current = setInterval(() => {
+              setAppState(prev => ({ ...prev, streamDuration: prev.streamDuration + 1 }));
+          }, 1000);
+
+          // Update statuses to 'live' after connection established (3 seconds)
+          setTimeout(() => {
+              setDestinations(prev => prev.map(d => d.isEnabled ? ({ ...d, status: 'live' }) : d));
+              setShowNotificationToast("You are LIVE! Broadcasting to " + activeDestinations.map(d => d.platform).join(', '));
+          }, 3000);
+
+      } catch (error: any) {
+          console.error('Failed to start stream:', error);
+          alert(`Failed to start stream: ${error.message}`);
+
+          // Rollback state
+          setAppState(prev => ({ ...prev, isStreaming: false }));
+          setDestinations(prev => prev.map(d => ({ ...d, status: 'offline' })));
+
+          // Stop local recording
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+              mediaRecorderRef.current.stop();
+          }
+      }
   };
 
-  const stopBroadcasting = () => {
-      // 1. Stop Recorder
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-          mediaRecorderRef.current.stop();
+  const stopBroadcasting = async () => {
+      try {
+          // 1. Stop real streaming
+          await streamingService.stopStream();
+
+          // 2. Stop local recorder
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+              mediaRecorderRef.current.stop();
+          }
+
+          // 3. Clear Timer
+          if (streamIntervalRef.current) {
+              clearInterval(streamIntervalRef.current);
+              streamIntervalRef.current = null;
+          }
+
+          // 4. UI Updates
+          setAppState(prev => ({ ...prev, isStreaming: false }));
+          setDestinations(prev => prev.map(d => ({ ...d, status: 'offline' })));
+
+          // 5. Trigger Download (Verification)
+          setTimeout(() => {
+              const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.style.display = 'none';
+              a.href = url;
+              a.download = `streamhub-recording-${new Date().toISOString()}.webm`;
+              document.body.appendChild(a);
+              a.click();
+              window.URL.revokeObjectURL(url);
+              setShowNotificationToast("Stream Ended. Recording downloaded for verification.");
+          }, 500);
+
+      } catch (error: any) {
+          console.error('Error stopping stream:', error);
+          alert(`Error stopping stream: ${error.message}`);
       }
-
-      // 2. Clear Timer
-      if (streamIntervalRef.current) {
-          clearInterval(streamIntervalRef.current);
-          streamIntervalRef.current = null;
-      }
-
-      // 3. UI Updates
-      setAppState(prev => ({ ...prev, isStreaming: false }));
-      setDestinations(prev => prev.map(d => ({ ...d, status: 'offline' })));
-
-      // 4. Trigger Download (Verification)
-      setTimeout(() => {
-          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = url;
-          a.download = `streamhub-recording-${new Date().toISOString()}.webm`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          setShowNotificationToast("Stream Ended. Recording downloaded for verification.");
-      }, 500);
   };
 
   const toggleStreaming = () => {

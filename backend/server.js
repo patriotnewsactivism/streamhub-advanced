@@ -4,7 +4,21 @@ const cors = require('cors');
 const WebSocket = require('ws');
 const { Pool } = require('pg');
 const redis = require('redis');
+const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
+
+// Import custom modules
+const streamManager = require('./streamManager');
+const {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyToken,
+  hashPassword,
+  comparePassword,
+  authMiddleware,
+  optionalAuthMiddleware
+} = require('./auth');
 
 // Environment configuration
 const PORT = Number(process.env.PORT) || 3000;
@@ -59,6 +73,24 @@ if (process.env.REDIS_HOST) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 requests per window
+  message: 'Too many authentication attempts, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// General API rate limiter
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: 'Too many requests, please slow down',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -211,10 +243,214 @@ app.post('/api/init-database', async (req, res) => {
   }
 });
 
-// API Routes
+// ============================================================================
+// AUTHENTICATION ROUTES
+// ============================================================================
 
-// Get all users
-app.get('/api/users', async (req, res) => {
+// Register new user
+app.post('/api/auth/register',
+  authLimiter,
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('username').isLength({ min: 3, max: 30 }).trim(),
+    body('password').isLength({ min: 8 }),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, username, password } = req.body;
+
+    try {
+      // Hash password
+      const passwordHash = await hashPassword(password);
+
+      // Insert user with hashed password
+      const result = await pool.query(
+        `INSERT INTO users (email, username, password_hash)
+         VALUES ($1, $2, $3)
+         RETURNING id, email, username, created_at`,
+        [email, username, passwordHash]
+      );
+
+      const user = result.rows[0];
+
+      // Generate tokens
+      const accessToken = generateAccessToken(user);
+      const refreshToken = generateRefreshToken(user);
+
+      // Store refresh token in Redis (optional, for revocation)
+      if (redisClient) {
+        await redisClient.set(`refresh_token:${user.id}`, refreshToken, {
+          EX: 30 * 24 * 60 * 60 // 30 days
+        });
+      }
+
+      res.status(201).json({
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username
+        },
+        accessToken,
+        refreshToken
+      });
+    } catch (error) {
+      console.error('Error creating user:', error);
+      if (error.code === '23505') { // Unique violation
+        res.status(409).json({ error: 'Email or username already exists' });
+      } else {
+        res.status(500).json({ error: 'Failed to create user' });
+      }
+    }
+  }
+);
+
+// Login
+app.post('/api/auth/login',
+  authLimiter,
+  [
+    body('email').isEmail().normalizeEmail(),
+    body('password').exists(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { email, password } = req.body;
+
+    try {
+      const result = await pool.query(
+        'SELECT id, email, username, password_hash, created_at FROM users WHERE email = $1',
+        [email]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      const user = result.rows[0];
+
+      // Verify password
+      const isValid = await comparePassword(password, user.password_hash);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+
+      // Generate tokens
+      const accessToken = generateAccessToken(user);
+      const refreshToken = generateRefreshToken(user);
+
+      // Store refresh token in Redis
+      if (redisClient) {
+        await redisClient.set(`refresh_token:${user.id}`, refreshToken, {
+          EX: 30 * 24 * 60 * 60 // 30 days
+        });
+      }
+
+      res.json({
+        user: {
+          id: user.id,
+          email: user.email,
+          username: user.username
+        },
+        accessToken,
+        refreshToken
+      });
+    } catch (error) {
+      console.error('Error during login:', error);
+      res.status(500).json({ error: 'Login failed' });
+    }
+  }
+);
+
+// Refresh token
+app.post('/api/auth/refresh', async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'Refresh token required' });
+  }
+
+  try {
+    const decoded = verifyToken(refreshToken);
+
+    if (decoded.type !== 'refresh') {
+      return res.status(401).json({ error: 'Invalid refresh token' });
+    }
+
+    // Verify token exists in Redis (if using Redis)
+    if (redisClient) {
+      const storedToken = await redisClient.get(`refresh_token:${decoded.id}`);
+      if (storedToken !== refreshToken) {
+        return res.status(401).json({ error: 'Refresh token revoked or invalid' });
+      }
+    }
+
+    // Get user data
+    const result = await pool.query(
+      'SELECT id, email, username FROM users WHERE id = $1',
+      [decoded.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
+
+    const user = result.rows[0];
+
+    // Generate new access token
+    const newAccessToken = generateAccessToken(user);
+
+    res.json({ accessToken: newAccessToken });
+  } catch (error) {
+    console.error('Error refreshing token:', error);
+    res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+});
+
+// Get current user profile
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT id, email, username, created_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ user: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.status(500).json({ error: 'Failed to fetch profile' });
+  }
+});
+
+// Logout (revoke refresh token)
+app.post('/api/auth/logout', authMiddleware, async (req, res) => {
+  try {
+    if (redisClient) {
+      await redisClient.del(`refresh_token:${req.user.id}`);
+    }
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Error during logout:', error);
+    res.status(500).json({ error: 'Logout failed' });
+  }
+});
+
+// ============================================================================
+// USER ROUTES
+// ============================================================================
+
+// Get all users (protected)
+app.get('/api/users', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query('SELECT id, email, username, created_at FROM users ORDER BY created_at DESC');
     res.json({ users: result.rows });
@@ -383,6 +619,119 @@ app.patch('/api/sessions/:id/end', async (req, res) => {
   }
 });
 
+// ============================================================================
+// STREAMING ROUTES
+// ============================================================================
+
+// Start stream session
+app.post('/api/stream/start', authMiddleware, async (req, res) => {
+  const { destinations, title, description } = req.body;
+
+  if (!destinations || !Array.isArray(destinations) || destinations.length === 0) {
+    return res.status(400).json({ error: 'At least one destination is required' });
+  }
+
+  try {
+    // Check if user already has an active stream
+    if (streamManager.hasActiveStream(req.user.id)) {
+      return res.status(409).json({ error: 'User already has an active stream' });
+    }
+
+    // Create stream session in database
+    const sessionResult = await pool.query(
+      `INSERT INTO stream_sessions (user_id, title, description, status)
+       VALUES ($1, $2, $3, 'active')
+       RETURNING id, started_at`,
+      [req.user.id, title || 'Untitled Stream', description || '']
+    );
+
+    const session = sessionResult.rows[0];
+
+    // Start stream with StreamManager
+    const streamInfo = streamManager.startStream(req.user.id, destinations);
+
+    res.json({
+      success: true,
+      sessionId: streamInfo.sessionId,
+      dbSessionId: session.id,
+      destinations: streamInfo.destinations,
+      startTime: session.started_at
+    });
+  } catch (error) {
+    console.error('Error starting stream:', error);
+    res.status(500).json({ error: 'Failed to start stream', details: error.message });
+  }
+});
+
+// Stop stream session
+app.post('/api/stream/stop', authMiddleware, async (req, res) => {
+  try {
+    if (!streamManager.hasActiveStream(req.user.id)) {
+      return res.status(404).json({ error: 'No active stream found' });
+    }
+
+    // Stop stream
+    const summary = streamManager.stopStream(req.user.id);
+
+    // Update session in database
+    await pool.query(
+      `UPDATE stream_sessions
+       SET ended_at = CURRENT_TIMESTAMP,
+           duration_seconds = $1,
+           status = 'ended'
+       WHERE user_id = $2 AND status = 'active'`,
+      [summary.duration, req.user.id]
+    );
+
+    res.json({
+      success: true,
+      duration: summary.duration,
+      destinations: summary.destinations
+    });
+  } catch (error) {
+    console.error('Error stopping stream:', error);
+    res.status(500).json({ error: 'Failed to stop stream', details: error.message });
+  }
+});
+
+// Get stream status
+app.get('/api/stream/status', authMiddleware, async (req, res) => {
+  try {
+    const status = streamManager.getStreamStatus(req.user.id);
+
+    if (!status) {
+      return res.json({ active: false });
+    }
+
+    res.json({
+      active: true,
+      ...status
+    });
+  } catch (error) {
+    console.error('Error getting stream status:', error);
+    res.status(500).json({ error: 'Failed to get stream status' });
+  }
+});
+
+// Get stream history
+app.get('/api/stream/history', authMiddleware, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, title, description, started_at, ended_at, duration_seconds, status
+       FROM stream_sessions
+       WHERE user_id = $1
+       ORDER BY started_at DESC
+       LIMIT 50`,
+      [req.user.id]
+    );
+
+    res.json({ sessions: result.rows });
+  } catch (error) {
+    console.error('Error fetching stream history:', error);
+    res.status(500).json({ error: 'Failed to fetch stream history' });
+  }
+});
+
 // Node-Media-Server Configuration
 const nmsConfig = {
   rtmp: {
@@ -422,43 +771,143 @@ if (ENABLE_RTMP) {
   console.log('[rtmp] RTMP server disabled (set ENABLE_RTMP=true to enable)');
 }
 
-// WebSocket Server for Real-time Signaling
+// WebSocket Server for Real-time Signaling and Stream Data
 const wss = new WebSocket.Server({ noServer: true });
+
+// Track WebSocket to user mapping
+const wsUserMap = new Map();
 
 wss.on('connection', (ws, req) => {
   console.log('[ws] Client connected via WebSocket');
+  let userId = null;
+  let isAuthenticated = false;
 
   ws.on('message', async (message) => {
     try {
-      const data = JSON.parse(message);
-      console.log('[ws] Received:', data.type);
+      // Check if message is binary (stream data) or text (control message)
+      if (message instanceof Buffer) {
+        // Binary data - stream chunk
+        if (!isAuthenticated || !userId) {
+          console.warn('[ws] Received stream data from unauthenticated client');
+          return;
+        }
+
+        if (!streamManager.hasActiveStream(userId)) {
+          console.warn('[ws] Received stream data but no active stream for user', userId);
+          return;
+        }
+
+        try {
+          streamManager.writeChunk(userId, message);
+        } catch (error) {
+          console.error('[ws] Error writing stream chunk:', error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Failed to process stream data'
+          }));
+        }
+        return;
+      }
+
+      // Text message - parse as JSON
+      const data = JSON.parse(message.toString());
+      console.log('[ws] Received control message:', data.type);
 
       // Handle different message types
       switch (data.type) {
+        case 'authenticate':
+          // Authenticate WebSocket connection
+          if (!data.token) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Token required' }));
+            return;
+          }
+
+          try {
+            const decoded = verifyToken(data.token);
+            userId = decoded.id;
+            isAuthenticated = true;
+            wsUserMap.set(ws, userId);
+
+            ws.send(JSON.stringify({
+              type: 'authenticated',
+              userId: userId
+            }));
+
+            console.log(`[ws] Client authenticated as user ${userId}`);
+          } catch (error) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Invalid or expired token'
+            }));
+          }
+          break;
+
         case 'stream_start':
-          // Handle stream start event
-          ws.send(JSON.stringify({ type: 'stream_started', status: 'success' }));
+          if (!isAuthenticated) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            return;
+          }
+
+          ws.send(JSON.stringify({
+            type: 'stream_started',
+            status: 'success',
+            message: 'Ready to receive stream data'
+          }));
           break;
 
         case 'stream_stop':
-          // Handle stream stop event
-          ws.send(JSON.stringify({ type: 'stream_stopped', status: 'success' }));
+          if (!isAuthenticated) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
+            return;
+          }
+
+          ws.send(JSON.stringify({
+            type: 'stream_stopped',
+            status: 'success'
+          }));
+          break;
+
+        case 'ping':
+          ws.send(JSON.stringify({ type: 'pong' }));
           break;
 
         default:
-          console.log('Unknown message type:', data.type);
+          console.log('[ws] Unknown message type:', data.type);
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: `Unknown message type: ${data.type}`
+          }));
       }
     } catch (error) {
-      console.error('Error processing WebSocket message:', error);
+      console.error('[ws] Error processing WebSocket message:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: 'Failed to process message'
+      }));
     }
   });
 
   ws.on('close', () => {
     console.log('[ws] Client disconnected');
+
+    // Clean up user mapping
+    if (userId && wsUserMap.has(ws)) {
+      wsUserMap.delete(ws);
+    }
+
+    // Stop stream if still active
+    if (userId && streamManager.hasActiveStream(userId)) {
+      console.log(`[ws] Stopping stream for disconnected user ${userId}`);
+      try {
+        streamManager.stopStream(userId);
+      } catch (error) {
+        console.error('[ws] Error stopping stream on disconnect:', error);
+      }
+    }
   });
 
   ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
+    console.error('[ws] WebSocket error:', error);
   });
 });
 
