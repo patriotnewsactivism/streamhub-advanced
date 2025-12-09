@@ -20,13 +20,17 @@ import CloudImportModal from './CloudImportModal';
 import NotificationPanel from './NotificationPanel';
 import CloudVMManager from './CloudVMManager';
 import AudioMixer from './AudioMixer';
+import OnboardingTour from './OnboardingTour';
+import PreStreamConfirmation from './PreStreamConfirmation';
+import ChatScreamer, { ChatScreamerMessage } from './ChatScreamer';
+import ChatScreamerOverlay from './ChatScreamerOverlay';
 import { generateStreamMetadata } from '../services/geminiService';
 import streamingService from '../services/streamingService';
 import authService from '../services/authService';
 import {
   Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square,
   AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon,
-  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu, Wifi
+  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu, Wifi, ChevronRight, ChevronDown
 } from 'lucide-react';
 
 interface StudioProps {
@@ -38,12 +42,13 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
   // --- Plan Limits Logic ---
   const getPlanLimits = (plan: UserPlan) => {
       switch (plan) {
-          case 'always_free': return { maxDest: 1, allowCloud: false, showWatermark: true, label: 'Free Tier' };
-          case 'free_trial': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Free Trial' };
-          case 'pro': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Pro Plan' };
-          case 'business': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Business' };
-          case 'admin': return { maxDest: 999, allowCloud: true, showWatermark: false, label: 'Admin' };
-          default: return { maxDest: 1, allowCloud: false, showWatermark: true, label: 'Free' };
+          case 'always_free': return { maxDest: 1, allowCloud: false, showWatermark: true, label: 'Free Tier', cloudHours: 0 };
+          case 'free_trial': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Free Trial', cloudHours: 5 };
+          case 'creator': return { maxDest: 3, allowCloud: true, showWatermark: false, label: 'Creator', cloudHours: 2 };
+          case 'pro': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Pro Plan', cloudHours: 5 };
+          case 'business': return { maxDest: 99, allowCloud: true, showWatermark: false, label: 'Business', cloudHours: 50 };
+          case 'admin': return { maxDest: 999, allowCloud: true, showWatermark: false, label: 'Admin', cloudHours: Infinity };
+          default: return { maxDest: 1, allowCloud: false, showWatermark: true, label: 'Free', cloudHours: 0 };
       }
   };
 
@@ -82,6 +87,17 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
 
   // Cloud Import
   const [isCloudModalOpen, setIsCloudModalOpen] = useState(false);
+
+  // Onboarding & Pre-stream
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    // Show onboarding for new users (check localStorage)
+    const hasSeenOnboarding = localStorage.getItem('streamhub_onboarding_completed');
+    return !hasSeenOnboarding;
+  });
+  const [showPreStreamConfirm, setShowPreStreamConfirm] = useState(false);
+
+  // ChatScreamer state
+  const [chatScreamerMessage, setChatScreamerMessage] = useState<ChatScreamerMessage | null>(null);
 
   // Media Streams
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -421,8 +437,14 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
               stopBroadcasting();
           }
       } else {
-          startBroadcasting();
+          // Show pre-stream confirmation instead of starting immediately
+          setShowPreStreamConfirm(true);
       }
+  };
+
+  const handleOnboardingComplete = () => {
+      localStorage.setItem('streamhub_onboarding_completed', 'true');
+      setShowOnboarding(false);
   };
 
   const handleGenerateMetadata = async () => {
@@ -584,7 +606,7 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                                     </div>
                                 </div>
                             )}
-                            <CanvasCompositor 
+                            <CanvasCompositor
                                 ref={canvasRef}
                                 layout={layout}
                                 cameraStream={cameraStream}
@@ -593,6 +615,12 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                                 activeVideoUrl={activeVideoUrl}
                                 backgroundUrl={null}
                                 showWatermark={planLimits.showWatermark}
+                            />
+                            {/* ChatScreamer Overlay - renders on top of canvas */}
+                            <ChatScreamerOverlay
+                                message={chatScreamerMessage}
+                                position="center"
+                                animation="bounce"
                             />
                         </>
                     )}
@@ -616,8 +644,13 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                         </button>
                     </div>
 
-                    <div className="flex-1 max-w-xl min-w-[200px]">
+                    <div className="flex-1 flex items-center gap-3 max-w-2xl min-w-[200px]">
                         <AudioMixer mixerState={mixerState} onChange={(k, v) => setMixerState(p => ({...p, [k]: v}))} />
+                        {/* ChatScreamer Control Panel */}
+                        <ChatScreamer
+                            onOverlayMessage={setChatScreamerMessage}
+                            isStreaming={appState.isStreaming}
+                        />
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -655,10 +688,23 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
 
         {/* RIGHT SIDEBAR (Media) - Desktop */}
         <aside className={`w-80 bg-dark-900 border-l border-gray-800 flex-col z-10 ${activeMobileTab === 'media' ? 'flex absolute inset-0 md:static w-full' : 'hidden md:flex'}`}>
-            <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-                 <h2 className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><ImageIcon size={14}/> Media Assets</h2>
-                 <button onClick={() => setIsCloudModalOpen(true)} className="text-xs bg-dark-800 hover:bg-gray-700 px-2 py-1 rounded text-brand-400 flex items-center gap-1 border border-brand-500/30">
-                     <Cloud size={12}/> Import
+            <div className="p-3 border-b border-gray-800">
+                 <div className="flex justify-between items-center mb-3">
+                   <h2 className="text-xs font-bold uppercase text-gray-400 flex items-center gap-2"><ImageIcon size={14}/> Media Assets</h2>
+                 </div>
+                 {/* Elevated Cloud Import Button */}
+                 <button
+                   onClick={() => setIsCloudModalOpen(true)}
+                   className="w-full bg-gradient-to-r from-brand-900/50 to-purple-900/50 hover:from-brand-800/60 hover:to-purple-800/60 border border-brand-500/40 hover:border-brand-500/60 rounded-lg p-3 flex items-center gap-3 transition-all group"
+                 >
+                     <div className="w-10 h-10 bg-brand-500/20 rounded-lg flex items-center justify-center group-hover:bg-brand-500/30 transition-colors">
+                       <Cloud size={20} className="text-brand-400" />
+                     </div>
+                     <div className="text-left flex-1">
+                       <div className="text-sm font-bold text-white">Cloud Import</div>
+                       <div className="text-xs text-gray-400">Google Drive, Dropbox, OneDrive...</div>
+                     </div>
+                     <ChevronRight size={16} className="text-gray-500 group-hover:text-white transition-colors" />
                  </button>
             </div>
             <MediaBin 
@@ -688,10 +734,32 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
       </nav>
 
       {/* MODALS */}
-      <CloudImportModal 
+      <CloudImportModal
          isOpen={isCloudModalOpen}
          onClose={() => setIsCloudModalOpen(false)}
          onImport={handleCloudImport}
+      />
+
+      {/* Onboarding Tour for new users */}
+      <OnboardingTour
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onComplete={handleOnboardingComplete}
+      />
+
+      {/* Pre-stream confirmation modal */}
+      <PreStreamConfirmation
+        isOpen={showPreStreamConfirm}
+        onClose={() => setShowPreStreamConfirm(false)}
+        onConfirm={() => {
+          setShowPreStreamConfirm(false);
+          startBroadcasting();
+        }}
+        destinations={destinations}
+        hasCamera={!!cameraStream}
+        hasMic={!isMicMuted && !!cameraStream}
+        hasScreen={!!screenStream}
+        streamTitle={generatedInfo?.title}
       />
     </div>
   );
