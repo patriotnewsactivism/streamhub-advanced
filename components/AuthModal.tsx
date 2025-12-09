@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserPlan } from '../types';
-import { X, Lock, Mail, User as UserIcon, CheckCircle, ShieldAlert, Zap } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon } from 'lucide-react';
 import authService from '../services/authService';
 
 interface AuthModalProps {
