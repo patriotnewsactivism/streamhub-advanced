@@ -23,7 +23,7 @@ export interface Destination {
   platform: Platform;
   name: string; // e.g., "Personal YouTube", "Business YouTube"
   streamKey: string;
-  serverUrl?: string;
+  streamUrl: string; // RTMP server URL (e.g., rtmp://a.rtmp.youtube.com/live2)
   isEnabled: boolean;
   status: 'offline' | 'connecting' | 'live' | 'error';
   connectedAccount?: string; // For OAuth connected accounts
@@ -79,6 +79,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  username?: string; // Backend returns username, frontend uses name
   plan: UserPlan;
   trialEndDate?: string; // ISO Date string
   cloudHoursUsed: number;

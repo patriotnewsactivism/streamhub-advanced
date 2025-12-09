@@ -23,7 +23,7 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPlatform, setNewPlatform] = useState<Platform>(Platform.YOUTUBE);
   const [newName, setNewName] = useState('');
-  const [serverUrl, setServerUrl] = useState('');
+  const [streamUrl, setStreamUrl] = useState('');
   const [streamKey, setStreamKey] = useState('');
 
   const canAddMore = destinations.length < planLimit;
@@ -38,27 +38,27 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
 
   const handlePlatformChange = (p: Platform) => {
     setNewPlatform(p);
-    setServerUrl(PRESETS[p]);
+    setStreamUrl(PRESETS[p]);
   };
 
   const handleAdd = () => {
     if (!newName || !streamKey) return;
-    
+
     const newDest: Destination = {
       id: Date.now().toString(),
       platform: newPlatform,
       name: newName,
       streamKey: streamKey,
-      serverUrl: serverUrl || PRESETS[newPlatform],
+      streamUrl: streamUrl || PRESETS[newPlatform],
       isEnabled: true,
       status: 'offline'
     };
     onAddDestination(newDest);
-    
+
     // Reset form
     setNewName('');
     setStreamKey('');
-    setServerUrl('');
+    setStreamUrl('');
     setShowAddForm(false);
   };
 
@@ -134,12 +134,12 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
                 </div>
 
                 <div>
-                    <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1"><Server size={10}/> Server URL</label>
-                    <input 
-                    type="text" 
+                    <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1"><Server size={10}/> Stream URL</label>
+                    <input
+                    type="text"
                     placeholder="rtmp://..."
-                    value={serverUrl}
-                    onChange={(e) => setServerUrl(e.target.value)}
+                    value={streamUrl}
+                    onChange={(e) => setStreamUrl(e.target.value)}
                     className="w-full bg-dark-800 border border-gray-700 rounded p-2 text-sm text-gray-300 font-mono focus:border-brand-500 outline-none"
                     />
                 </div>
@@ -182,7 +182,7 @@ const DestinationManager: React.FC<DestinationManagerProps> = ({
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate max-w-[120px] text-gray-200" title={dest.name}>{dest.name}</div>
                 <div className="text-[10px] text-gray-500 font-mono truncate max-w-[120px] opacity-70">
-                    {dest.serverUrl}
+                    {dest.streamUrl}
                 </div>
               </div>
             </div>

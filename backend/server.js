@@ -71,7 +71,17 @@ if (process.env.REDIS_HOST) {
 
 // Express API Server
 const app = express();
-app.use(cors());
+
+// CORS configuration - restrict to specific origins in production
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production'
+    ? (process.env.FRONTEND_URL || 'http://localhost:8080')
+    : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // Rate limiting for authentication endpoints
@@ -127,14 +137,35 @@ app.post('/api/init-database', async (req, res) => {
 
     const schema = `
       -- StreamHub Pro Database Initialization
-      -- Users table
+      -- Users table with full auth support
       CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
           email VARCHAR(255) UNIQUE NOT NULL,
           username VARCHAR(100) UNIQUE NOT NULL,
+          password_hash VARCHAR(255),
+          plan VARCHAR(50) DEFAULT 'always_free',
+          cloud_hours_used INTEGER DEFAULT 0,
+          cloud_hours_limit INTEGER DEFAULT 5,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+
+      -- Add columns to existing users table if they don't exist
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash') THEN
+          ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'plan') THEN
+          ALTER TABLE users ADD COLUMN plan VARCHAR(50) DEFAULT 'always_free';
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'cloud_hours_used') THEN
+          ALTER TABLE users ADD COLUMN cloud_hours_used INTEGER DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'cloud_hours_limit') THEN
+          ALTER TABLE users ADD COLUMN cloud_hours_limit INTEGER DEFAULT 5;
+        END IF;
+      END $$;
 
       -- Stream destinations table
       CREATE TABLE IF NOT EXISTS stream_destinations (
@@ -267,11 +298,11 @@ app.post('/api/auth/register',
       // Hash password
       const passwordHash = await hashPassword(password);
 
-      // Insert user with hashed password
+      // Insert user with hashed password and default plan
       const result = await pool.query(
-        `INSERT INTO users (email, username, password_hash)
-         VALUES ($1, $2, $3)
-         RETURNING id, email, username, created_at`,
+        `INSERT INTO users (email, username, password_hash, plan, cloud_hours_used, cloud_hours_limit)
+         VALUES ($1, $2, $3, 'free_trial', 0, 5)
+         RETURNING id, email, username, plan, cloud_hours_used, cloud_hours_limit, created_at`,
         [email, username, passwordHash]
       );
 
@@ -292,7 +323,10 @@ app.post('/api/auth/register',
         user: {
           id: user.id,
           email: user.email,
-          username: user.username
+          username: user.username,
+          plan: user.plan,
+          cloudHoursUsed: user.cloud_hours_used,
+          cloudHoursLimit: user.cloud_hours_limit
         },
         accessToken,
         refreshToken
@@ -325,7 +359,7 @@ app.post('/api/auth/login',
 
     try {
       const result = await pool.query(
-        'SELECT id, email, username, password_hash, created_at FROM users WHERE email = $1',
+        'SELECT id, email, username, password_hash, plan, cloud_hours_used, cloud_hours_limit, created_at FROM users WHERE email = $1',
         [email]
       );
 
@@ -334,6 +368,11 @@ app.post('/api/auth/login',
       }
 
       const user = result.rows[0];
+
+      // Check if user has password set (for legacy users)
+      if (!user.password_hash) {
+        return res.status(401).json({ error: 'Account requires password setup. Please register again.' });
+      }
 
       // Verify password
       const isValid = await comparePassword(password, user.password_hash);
@@ -356,7 +395,10 @@ app.post('/api/auth/login',
         user: {
           id: user.id,
           email: user.email,
-          username: user.username
+          username: user.username,
+          plan: user.plan || 'always_free',
+          cloudHoursUsed: user.cloud_hours_used || 0,
+          cloudHoursLimit: user.cloud_hours_limit || 5
         },
         accessToken,
         refreshToken
@@ -417,7 +459,7 @@ app.post('/api/auth/refresh', async (req, res) => {
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, username, created_at FROM users WHERE id = $1',
+      'SELECT id, email, username, plan, cloud_hours_used, cloud_hours_limit, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
 
@@ -425,7 +467,17 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    res.json({ user: result.rows[0] });
+    const user = result.rows[0];
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        plan: user.plan || 'always_free',
+        cloudHoursUsed: user.cloud_hours_used || 0,
+        cloudHoursLimit: user.cloud_hours_limit || 5
+      }
+    });
   } catch (error) {
     console.error('Error fetching user profile:', error);
     res.status(500).json({ error: 'Failed to fetch profile' });
@@ -484,9 +536,14 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
-// Get destinations for a user
-app.get('/api/users/:userId/destinations', async (req, res) => {
+// Get destinations for a user (protected + authorization check)
+app.get('/api/users/:userId/destinations', authMiddleware, async (req, res) => {
   const { userId } = req.params;
+
+  // Authorization check - users can only access their own data
+  if (req.user.id.toString() !== userId) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   try {
     const result = await pool.query(
@@ -500,10 +557,15 @@ app.get('/api/users/:userId/destinations', async (req, res) => {
   }
 });
 
-// Create destination
-app.post('/api/users/:userId/destinations', async (req, res) => {
+// Create destination (protected + authorization check)
+app.post('/api/users/:userId/destinations', authMiddleware, async (req, res) => {
   const { userId } = req.params;
   const { platform, name, stream_key, stream_url } = req.body;
+
+  // Authorization check
+  if (req.user.id.toString() !== userId) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   if (!platform || !name || !stream_key || !stream_url) {
     return res.status(400).json({ error: 'All fields are required' });
@@ -521,20 +583,30 @@ app.post('/api/users/:userId/destinations', async (req, res) => {
   }
 });
 
-// Update destination status
-app.patch('/api/destinations/:id', async (req, res) => {
+// Update destination status (protected + ownership check)
+app.patch('/api/destinations/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { is_active } = req.body;
 
   try {
+    // First verify ownership
+    const ownerCheck = await pool.query(
+      'SELECT user_id FROM stream_destinations WHERE id = $1',
+      [id]
+    );
+
+    if (ownerCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Destination not found' });
+    }
+
+    if (ownerCheck.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const result = await pool.query(
       'UPDATE stream_destinations SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
       [is_active, id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Destination not found' });
-    }
 
     res.json({ destination: result.rows[0] });
   } catch (error) {
@@ -543,16 +615,26 @@ app.patch('/api/destinations/:id', async (req, res) => {
   }
 });
 
-// Delete destination
-app.delete('/api/destinations/:id', async (req, res) => {
+// Delete destination (protected + ownership check)
+app.delete('/api/destinations/:id', authMiddleware, async (req, res) => {
   const { id } = req.params;
 
   try {
-    const result = await pool.query('DELETE FROM stream_destinations WHERE id = $1 RETURNING id', [id]);
+    // First verify ownership
+    const ownerCheck = await pool.query(
+      'SELECT user_id FROM stream_destinations WHERE id = $1',
+      [id]
+    );
 
-    if (result.rows.length === 0) {
+    if (ownerCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Destination not found' });
     }
+
+    if (ownerCheck.rows[0].user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    await pool.query('DELETE FROM stream_destinations WHERE id = $1', [id]);
 
     res.json({ message: 'Destination deleted successfully' });
   } catch (error) {
@@ -561,9 +643,14 @@ app.delete('/api/destinations/:id', async (req, res) => {
   }
 });
 
-// Get stream sessions
-app.get('/api/users/:userId/sessions', async (req, res) => {
+// Get stream sessions (protected + authorization)
+app.get('/api/users/:userId/sessions', authMiddleware, async (req, res) => {
   const { userId } = req.params;
+
+  // Authorization check
+  if (req.user.id.toString() !== userId) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
 
   try {
     const result = await pool.query(
@@ -577,14 +664,14 @@ app.get('/api/users/:userId/sessions', async (req, res) => {
   }
 });
 
-// Create stream session
-app.post('/api/sessions', async (req, res) => {
-  const { user_id, title, description, metadata } = req.body;
+// Create stream session (protected)
+app.post('/api/sessions', authMiddleware, async (req, res) => {
+  const { title, description, metadata } = req.body;
 
   try {
     const result = await pool.query(
       'INSERT INTO stream_sessions (user_id, title, description, metadata) VALUES ($1, $2, $3, $4) RETURNING *',
-      [user_id, title, description, metadata || {}]
+      [req.user.id, title, description, metadata || {}]
     );
     res.status(201).json({ session: result.rows[0] });
   } catch (error) {
