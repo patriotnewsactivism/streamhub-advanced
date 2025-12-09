@@ -4,11 +4,13 @@ import LandingPage from './components/LandingPage';
 import Studio from './components/Studio';
 import { User } from './types';
 import { pingBackend } from './services/apiClient';
+import authService from './services/authService';
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
   const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
+  // Check backend health on mount
   useEffect(() => {
     let cancelled = false;
     pingBackend()
@@ -25,11 +27,47 @@ const App = () => {
     };
   }, []);
 
+  // Restore user session from stored tokens
+  useEffect(() => {
+    if (backendStatus !== 'online') return;
+
+    const restoreSession = async () => {
+      try {
+        const currentUser = await authService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+        }
+      } catch (error) {
+        console.log('No existing session to restore');
+      }
+    };
+
+    restoreSession();
+  }, [backendStatus]);
+
+  // Periodic health check to detect backend disconnection
+  useEffect(() => {
+    if (backendStatus !== 'online') return;
+
+    const interval = setInterval(() => {
+      pingBackend()
+        .then(() => setBackendStatus('online'))
+        .catch(() => setBackendStatus('offline'));
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [backendStatus]);
+
   const handleLogin = (user: User) => {
       setUser(user);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+      try {
+        await authService.logout();
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
       setUser(null);
   };
 

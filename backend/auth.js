@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 
 // JWT_SECRET must be set in production
 const JWT_SECRET = process.env.JWT_SECRET;

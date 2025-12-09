@@ -48,6 +48,28 @@ pool.on('error', (err) => {
   console.error('[db] PostgreSQL connection error:', err);
 });
 
+// Database connection retry logic
+const connectWithRetry = async (retries = 5, delay = 3000) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const client = await pool.connect();
+      console.log('[db] PostgreSQL connection verified successfully');
+      client.release();
+      return true;
+    } catch (err) {
+      console.log(`[db] Connection attempt ${i + 1}/${retries} failed, retrying in ${delay}ms...`);
+      if (i < retries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  console.error('[db] Failed to connect to PostgreSQL after all retries');
+  return false;
+};
+
+// Connect to database on startup
+connectWithRetry();
+
 // Redis Client Setup (optional - for session management)
 let redisClient = null;
 if (process.env.REDIS_HOST) {

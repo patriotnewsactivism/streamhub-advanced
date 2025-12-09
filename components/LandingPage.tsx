@@ -32,9 +32,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900/80 backdrop-blur-md border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex flex-col items-start cursor-pointer" onClick={() => window.scrollTo(0,0)}>
-            <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-red-500 via-white to-blue-500 bg-clip-text text-transparent drop-shadow-lg" style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.05em' }}>ChatScream</span>
-            <span className="text-[10px] font-medium text-gray-400 tracking-widest uppercase -mt-1">by We The People News</span>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-white to-blue-600 flex items-center justify-center shadow-lg">
+              <Zap size={20} className="text-gray-900" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xl font-bold text-white tracking-tight">ChatScream</span>
+              <span className="text-[10px] font-medium text-gray-500 tracking-wide">by We The People News</span>
+            </div>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -360,8 +365,23 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         </div>
       </section>
 
-      <footer className="py-8 text-center text-gray-600 text-sm border-t border-gray-800/50 bg-dark-900">
-          &copy; {new Date().getFullYear()} ChatScream by We The People News. All rights reserved.
+      <footer className="py-12 px-6 border-t border-gray-800/50 bg-dark-900">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-600 via-white to-blue-600 flex items-center justify-center">
+              <Zap size={14} className="text-gray-900" />
+            </div>
+            <span className="text-sm text-gray-400 font-medium">ChatScream by We The People News</span>
+          </div>
+          <div className="flex items-center gap-6 text-sm text-gray-500">
+            <a href="#" className="hover:text-gray-300 transition-colors">Privacy</a>
+            <a href="#" className="hover:text-gray-300 transition-colors">Terms</a>
+            <a href="#" className="hover:text-gray-300 transition-colors">Support</a>
+          </div>
+          <div className="text-sm text-gray-600">
+            &copy; {new Date().getFullYear()} All rights reserved.
+          </div>
+        </div>
       </footer>
     </div>
   );

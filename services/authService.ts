@@ -1,6 +1,10 @@
 import { User } from '../types';
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+// Resolve API base URL - works in both development and Docker environments
+const API_BASE = import.meta.env.VITE_BACKEND_URL ||
+  (typeof window !== 'undefined'
+    ? `${window.location.protocol}//${window.location.hostname}:3000`
+    : 'http://localhost:3000');
 
 interface AuthResponse {
   user: {

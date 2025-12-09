@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Presentation Tier - Frontend React Application
   frontend:
@@ -39,7 +37,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
-      - ENABLE_RTMP=true
+      - ENABLE_RTMP=false
       - JWT_SECRET=streamhub-jwt-secret-change-in-production
     networks:
       - streamhub-network

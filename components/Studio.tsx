@@ -463,10 +463,12 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
       {/* --- HEADER --- */}
       <header className="h-16 bg-dark-900 border-b border-gray-800 flex items-center justify-between px-4 shrink-0 z-20">
         <div className="flex items-center gap-3">
-            <div className="bg-brand-600 p-1.5 rounded-lg">
-                <Sparkles size={18} fill="white" />
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-red-600 via-white to-blue-600 flex items-center justify-center shadow-md">
+                <Sparkles size={16} className="text-gray-900" />
             </div>
-            <h1 className="font-bold text-lg hidden md:block">StreamHub<span className="text-brand-400">Pro</span></h1>
+            <h1 className="font-bold text-lg hidden md:block">
+                ChatScream<span className="text-gray-400 text-sm ml-1">Studio</span>
+            </h1>
             <div className="bg-dark-800 px-2 py-1 rounded text-xs text-gray-400 border border-gray-700">
                 {planLimits.label}
             </div>
