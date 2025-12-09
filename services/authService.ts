@@ -10,6 +10,7 @@ interface AuthResponse {
     plan: string;
     cloudHoursUsed: number;
     cloudHoursLimit: number;
+    trialEndDate?: string;
   };
   accessToken: string;
   refreshToken: string;
@@ -69,6 +70,7 @@ class AuthService {
       plan: (data.user.plan as any) || 'free_trial',
       cloudHoursUsed: data.user.cloudHoursUsed || 0,
       cloudHoursLimit: data.user.cloudHoursLimit || 5,
+      trialEndDate: data.user.trialEndDate,
     };
   }
 
@@ -105,6 +107,7 @@ class AuthService {
       plan: (data.user.plan as any) || 'always_free',
       cloudHoursUsed: data.user.cloudHoursUsed || 0,
       cloudHoursLimit: data.user.cloudHoursLimit || 5,
+      trialEndDate: data.user.trialEndDate,
     };
   }
 
@@ -171,6 +174,7 @@ class AuthService {
         plan: (data.user.plan as any) || 'always_free',
         cloudHoursUsed: data.user.cloudHoursUsed || 0,
         cloudHoursLimit: data.user.cloudHoursLimit || 5,
+        trialEndDate: data.user.trialEndDate,
       };
     } catch (error) {
       console.error('Error fetching current user:', error);

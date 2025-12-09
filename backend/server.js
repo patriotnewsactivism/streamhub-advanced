@@ -138,6 +138,7 @@ app.post('/api/init-database', async (req, res) => {
     const schema = `
       -- StreamHub Pro Database Initialization
       -- Users table with full auth support
+      -- Plan tiers: always_free, free_trial, creator ($14.99), pro ($29.99), business ($59.99), admin
       CREATE TABLE IF NOT EXISTS users (
           id SERIAL PRIMARY KEY,
           email VARCHAR(255) UNIQUE NOT NULL,
@@ -146,6 +147,7 @@ app.post('/api/init-database', async (req, res) => {
           plan VARCHAR(50) DEFAULT 'always_free',
           cloud_hours_used INTEGER DEFAULT 0,
           cloud_hours_limit INTEGER DEFAULT 5,
+          trial_end_date TIMESTAMP,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
@@ -164,6 +166,9 @@ app.post('/api/init-database', async (req, res) => {
         END IF;
         IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'cloud_hours_limit') THEN
           ALTER TABLE users ADD COLUMN cloud_hours_limit INTEGER DEFAULT 5;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'trial_end_date') THEN
+          ALTER TABLE users ADD COLUMN trial_end_date TIMESTAMP;
         END IF;
       END $$;
 
@@ -298,11 +303,11 @@ app.post('/api/auth/register',
       // Hash password
       const passwordHash = await hashPassword(password);
 
-      // Insert user with hashed password and default plan
+      // Insert user with hashed password and default plan (free_trial gives full access for 7 days)
       const result = await pool.query(
-        `INSERT INTO users (email, username, password_hash, plan, cloud_hours_used, cloud_hours_limit)
-         VALUES ($1, $2, $3, 'free_trial', 0, 5)
-         RETURNING id, email, username, plan, cloud_hours_used, cloud_hours_limit, created_at`,
+        `INSERT INTO users (email, username, password_hash, plan, cloud_hours_used, cloud_hours_limit, trial_end_date)
+         VALUES ($1, $2, $3, 'free_trial', 0, 5, CURRENT_TIMESTAMP + INTERVAL '7 days')
+         RETURNING id, email, username, plan, cloud_hours_used, cloud_hours_limit, trial_end_date, created_at`,
         [email, username, passwordHash]
       );
 
@@ -326,7 +331,8 @@ app.post('/api/auth/register',
           username: user.username,
           plan: user.plan,
           cloudHoursUsed: user.cloud_hours_used,
-          cloudHoursLimit: user.cloud_hours_limit
+          cloudHoursLimit: user.cloud_hours_limit,
+          trialEndDate: user.trial_end_date
         },
         accessToken,
         refreshToken
@@ -359,7 +365,7 @@ app.post('/api/auth/login',
 
     try {
       const result = await pool.query(
-        'SELECT id, email, username, password_hash, plan, cloud_hours_used, cloud_hours_limit, created_at FROM users WHERE email = $1',
+        'SELECT id, email, username, password_hash, plan, cloud_hours_used, cloud_hours_limit, trial_end_date, created_at FROM users WHERE email = $1',
         [email]
       );
 
@@ -398,7 +404,8 @@ app.post('/api/auth/login',
           username: user.username,
           plan: user.plan || 'always_free',
           cloudHoursUsed: user.cloud_hours_used || 0,
-          cloudHoursLimit: user.cloud_hours_limit || 5
+          cloudHoursLimit: user.cloud_hours_limit || 5,
+          trialEndDate: user.trial_end_date
         },
         accessToken,
         refreshToken
@@ -459,7 +466,7 @@ app.post('/api/auth/refresh', async (req, res) => {
 app.get('/api/auth/me', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, username, plan, cloud_hours_used, cloud_hours_limit, created_at FROM users WHERE id = $1',
+      'SELECT id, email, username, plan, cloud_hours_used, cloud_hours_limit, trial_end_date, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
 
@@ -475,7 +482,8 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
         username: user.username,
         plan: user.plan || 'always_free',
         cloudHoursUsed: user.cloud_hours_used || 0,
-        cloudHoursLimit: user.cloud_hours_limit || 5
+        cloudHoursLimit: user.cloud_hours_limit || 5,
+        trialEndDate: user.trial_end_date
       }
     });
   } catch (error) {
