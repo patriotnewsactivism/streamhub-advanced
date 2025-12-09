@@ -24,18 +24,24 @@ const {
 const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
-// PostgreSQL Connection Setup for Cloud SQL
-// In Cloud Run, the instance connection is via Unix socket
+// Detect Cloud Run vs VM
+const IS_CLOUD_RUN = !!process.env.K_SERVICE;
+
+// PostgreSQL Connection Setup for Cloud SQL (Cloud Run) or local/VM Postgres
 const isCloudSQL = process.env.INSTANCE_CONNECTION_NAME;
 
-const pgConfig = isCloudSQL ? {
-  user: process.env.DB_USER || 'streamhub',
-  password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'streamhub',
-  host: `/cloudsql/${process.env.INSTANCE_CONNECTION_NAME}`,
-} : {
-  connectionString: process.env.DATABASE_URL || 'postgresql://streamhub:streamhub@localhost:5432/streamhub',
-};
+const pgConfig = isCloudSQL
+  ? {
+      user: process.env.DB_USER || 'streamhub',
+      password: process.env.DB_PASS || '',
+      database: process.env.DB_NAME || 'streamhub',
+      host: `/cloudsql/${process.env.INSTANCE_CONNECTION_NAME}`,
+    }
+  : {
+      connectionString:
+        process.env.DATABASE_URL ||
+        'postgresql://streamhub:streamhub@localhost:5432/streamhub',
+    };
 
 const pool = new Pool(pgConfig);
 
@@ -72,15 +78,26 @@ if (process.env.REDIS_HOST) {
 // Express API Server
 const app = express();
 
-// CORS configuration - restrict to specific origins in production
+// CORS configuration
+// In production, FRONTEND_URL (or FRONTEND_URLS=comma,separated,list) can be used.
+// In dev, common localhost ports are allowed.
+const frontendUrlsEnv =
+  process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
+const frontendOrigins = frontendUrlsEnv
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? (process.env.FRONTEND_URL || 'http://localhost:8080')
-    : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000'],
+  origin:
+    NODE_ENV === 'production'
+      ? (frontendOrigins.length > 0 ? frontendOrigins : true)
+      : ['http://localhost:5173', 'http://localhost:8080', 'http://localhost:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
 };
+
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -109,6 +126,8 @@ app.get('/health', (req, res) => {
     service: 'streamhub-backend',
     timestamp: new Date().toISOString(),
     database: pool.totalCount > 0 ? 'connected' : 'disconnected',
+    environment: NODE_ENV,
+    cloudRun: IS_CLOUD_RUN,
   });
 });
 
@@ -119,13 +138,13 @@ app.get('/api/test-db', async (req, res) => {
     res.json({
       success: true,
       message: 'Database connection successful',
-      time: result.rows[0].current_time
+      time: result.rows[0].current_time,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
       error: error.message,
-      details: error.stack
+      details: error.stack,
     });
   }
 });
@@ -262,12 +281,12 @@ app.post('/api/init-database', async (req, res) => {
     `);
 
     console.log('✅ Database schema initialized successfully!');
-    console.log('📊 Tables created:', result.rows.map(r => r.table_name).join(', '));
+    console.log('📊 Tables created:', result.rows.map((r) => r.table_name).join(', '));
 
     res.json({
       success: true,
       message: 'Database schema initialized successfully',
-      tables: result.rows.map(r => r.table_name),
+      tables: result.rows.map((r) => r.table_name),
     });
   } catch (error) {
     console.error('❌ Error initializing database:', error);
@@ -284,7 +303,8 @@ app.post('/api/init-database', async (req, res) => {
 // ============================================================================
 
 // Register new user
-app.post('/api/auth/register',
+app.post(
+  '/api/auth/register',
   authLimiter,
   [
     body('email').isEmail().normalizeEmail(),
@@ -320,7 +340,7 @@ app.post('/api/auth/register',
       // Store refresh token in Redis (optional, for revocation)
       if (redisClient) {
         await redisClient.set(`refresh_token:${user.id}`, refreshToken, {
-          EX: 30 * 24 * 60 * 60 // 30 days
+          EX: 30 * 24 * 60 * 60, // 30 days
         });
       }
 
@@ -332,14 +352,15 @@ app.post('/api/auth/register',
           plan: user.plan,
           cloudHoursUsed: user.cloud_hours_used,
           cloudHoursLimit: user.cloud_hours_limit,
-          trialEndDate: user.trial_end_date
+          trialEndDate: user.trial_end_date,
         },
         accessToken,
-        refreshToken
+        refreshToken,
       });
     } catch (error) {
       console.error('Error creating user:', error);
-      if (error.code === '23505') { // Unique violation
+      if (error.code === '23505') {
+        // Unique violation
         res.status(409).json({ error: 'Email or username already exists' });
       } else {
         res.status(500).json({ error: 'Failed to create user' });
@@ -349,12 +370,10 @@ app.post('/api/auth/register',
 );
 
 // Login
-app.post('/api/auth/login',
+app.post(
+  '/api/auth/login',
   authLimiter,
-  [
-    body('email').isEmail().normalizeEmail(),
-    body('password').exists(),
-  ],
+  [body('email').isEmail().normalizeEmail(), body('password').exists()],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -377,7 +396,9 @@ app.post('/api/auth/login',
 
       // Check if user has password set (for legacy users)
       if (!user.password_hash) {
-        return res.status(401).json({ error: 'Account requires password setup. Please register again.' });
+        return res
+          .status(401)
+          .json({ error: 'Account requires password setup. Please register again.' });
       }
 
       // Verify password
@@ -393,7 +414,7 @@ app.post('/api/auth/login',
       // Store refresh token in Redis
       if (redisClient) {
         await redisClient.set(`refresh_token:${user.id}`, refreshToken, {
-          EX: 30 * 24 * 60 * 60 // 30 days
+          EX: 30 * 24 * 60 * 60, // 30 days
         });
       }
 
@@ -405,10 +426,10 @@ app.post('/api/auth/login',
           plan: user.plan || 'always_free',
           cloudHoursUsed: user.cloud_hours_used || 0,
           cloudHoursLimit: user.cloud_hours_limit || 5,
-          trialEndDate: user.trial_end_date
+          trialEndDate: user.trial_end_date,
         },
         accessToken,
-        refreshToken
+        refreshToken,
       });
     } catch (error) {
       console.error('Error during login:', error);
@@ -483,8 +504,8 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
         plan: user.plan || 'always_free',
         cloudHoursUsed: user.cloud_hours_used || 0,
         cloudHoursLimit: user.cloud_hours_limit || 5,
-        trialEndDate: user.trial_end_date
-      }
+        trialEndDate: user.trial_end_date,
+      },
     });
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -512,7 +533,9 @@ app.post('/api/auth/logout', authMiddleware, async (req, res) => {
 // Get all users (protected)
 app.get('/api/users', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, email, username, created_at FROM users ORDER BY created_at DESC');
+    const result = await pool.query(
+      'SELECT id, email, username, created_at FROM users ORDER BY created_at DESC'
+    );
     res.json({ users: result.rows });
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -536,7 +559,8 @@ app.post('/api/users', async (req, res) => {
     res.status(201).json({ user: result.rows[0] });
   } catch (error) {
     console.error('Error creating user:', error);
-    if (error.code === '23505') { // Unique violation
+    if (error.code === '23505') {
+      // Unique violation
       res.status(409).json({ error: 'Email or username already exists' });
     } else {
       res.status(500).json({ error: 'Failed to create user' });
@@ -750,7 +774,7 @@ app.post('/api/stream/start', authMiddleware, async (req, res) => {
       sessionId: streamInfo.sessionId,
       dbSessionId: session.id,
       destinations: streamInfo.destinations,
-      startTime: session.started_at
+      startTime: session.started_at,
     });
   } catch (error) {
     console.error('Error starting stream:', error);
@@ -781,7 +805,7 @@ app.post('/api/stream/stop', authMiddleware, async (req, res) => {
     res.json({
       success: true,
       duration: summary.duration,
-      destinations: summary.destinations
+      destinations: summary.destinations,
     });
   } catch (error) {
     console.error('Error stopping stream:', error);
@@ -800,7 +824,7 @@ app.get('/api/stream/status', authMiddleware, async (req, res) => {
 
     res.json({
       active: true,
-      ...status
+      ...status,
     });
   } catch (error) {
     console.error('Error getting stream status:', error);
@@ -853,9 +877,8 @@ const nmsConfig = {
   },
 };
 
-// Only start RTMP server in non-Cloud Run environments or if explicitly enabled
-// Cloud Run doesn't support multiple ports easily, so we might need a separate service for RTMP
-const ENABLE_RTMP = process.env.ENABLE_RTMP === 'true';
+// Only start RTMP server on VM (NOT on Cloud Run) and only if explicitly enabled
+const ENABLE_RTMP = !IS_CLOUD_RUN && process.env.ENABLE_RTMP === 'true';
 
 if (ENABLE_RTMP) {
   const nms = new NodeMediaServer(nmsConfig);
@@ -863,7 +886,11 @@ if (ENABLE_RTMP) {
   console.log('[rtmp] RTMP server started on port 1935');
   console.log('[rtmp] HLS server started on port 8000');
 } else {
-  console.log('[rtmp] RTMP server disabled (set ENABLE_RTMP=true to enable)');
+  console.log(
+    `[rtmp] RTMP server disabled (${
+      IS_CLOUD_RUN ? 'running on Cloud Run' : 'ENABLE_RTMP is not set to true'
+    })`
+  );
 }
 
 // WebSocket Server for Real-time Signaling and Stream Data
@@ -896,10 +923,12 @@ wss.on('connection', (ws, req) => {
           streamManager.writeChunk(userId, message);
         } catch (error) {
           console.error('[ws] Error writing stream chunk:', error);
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: 'Failed to process stream data'
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              message: 'Failed to process stream data',
+            })
+          );
         }
         return;
       }
@@ -923,17 +952,21 @@ wss.on('connection', (ws, req) => {
             isAuthenticated = true;
             wsUserMap.set(ws, userId);
 
-            ws.send(JSON.stringify({
-              type: 'authenticated',
-              userId: userId
-            }));
+            ws.send(
+              JSON.stringify({
+                type: 'authenticated',
+                userId: userId,
+              })
+            );
 
             console.log(`[ws] Client authenticated as user ${userId}`);
           } catch (error) {
-            ws.send(JSON.stringify({
-              type: 'error',
-              message: 'Invalid or expired token'
-            }));
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                message: 'Invalid or expired token',
+              })
+            );
           }
           break;
 
@@ -943,11 +976,13 @@ wss.on('connection', (ws, req) => {
             return;
           }
 
-          ws.send(JSON.stringify({
-            type: 'stream_started',
-            status: 'success',
-            message: 'Ready to receive stream data'
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'stream_started',
+              status: 'success',
+              message: 'Ready to receive stream data',
+            })
+          );
           break;
 
         case 'stream_stop':
@@ -956,10 +991,12 @@ wss.on('connection', (ws, req) => {
             return;
           }
 
-          ws.send(JSON.stringify({
-            type: 'stream_stopped',
-            status: 'success'
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'stream_stopped',
+              status: 'success',
+            })
+          );
           break;
 
         case 'ping':
@@ -968,17 +1005,21 @@ wss.on('connection', (ws, req) => {
 
         default:
           console.log('[ws] Unknown message type:', data.type);
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: `Unknown message type: ${data.type}`
-          }));
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              message: `Unknown message type: ${data.type}`,
+            })
+          );
       }
     } catch (error) {
       console.error('[ws] Error processing WebSocket message:', error);
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: 'Failed to process message'
-      }));
+      ws.send(
+        JSON.stringify({
+          type: 'error',
+          message: 'Failed to process message',
+        })
+      );
     }
   });
 
@@ -1011,7 +1052,10 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('[server] StreamHub Backend Server Started');
   console.log(`[server] HTTP API running on port ${PORT}`);
   console.log(`[server] Environment: ${NODE_ENV}`);
-  console.log(`[server] Database: ${isCloudSQL ? 'Cloud SQL' : 'Local PostgreSQL'}`);
+  console.log(
+    `[server] Database: ${isCloudSQL ? 'Cloud SQL (Unix socket)' : 'Local/VM PostgreSQL'}`
+  );
+  console.log(`[server] Cloud Run: ${IS_CLOUD_RUN ? 'yes' : 'no'}`);
 });
 
 // Integrate WebSocket with HTTP server
