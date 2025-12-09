@@ -26,11 +26,10 @@ import ChatScreamer, { ChatScreamerMessage } from './ChatScreamer';
 import ChatScreamerOverlay from './ChatScreamerOverlay';
 import { generateStreamMetadata } from '../services/geminiService';
 import streamingService from '../services/streamingService';
-import authService from '../services/authService';
 import {
-  Mic, MicOff, Video, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square,
-  AlertCircle, Camera, Cloud, Share2, Server, Layout, Image as ImageIcon,
-  Globe, Settings, Disc, Download, LogOut, User as UserIcon, Menu, Wifi, ChevronRight, ChevronDown
+  Mic, MicOff, VideoOff, Monitor, MonitorOff, Sparkles, Play, Square,
+  AlertCircle, Camera, Cloud, Layout, Image as ImageIcon,
+  Globe, Settings, LogOut, Wifi, ChevronRight
 } from 'lucide-react';
 
 interface StudioProps {

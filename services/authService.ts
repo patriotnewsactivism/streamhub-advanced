@@ -39,23 +39,58 @@ class AuthService {
   }
 
   /**
+   * Safely parse JSON response, handling HTML error pages
+   */
+  private async parseJsonResponse(response: Response): Promise<any> {
+    const contentType = response.headers.get('content-type');
+    const text = await response.text();
+
+    // Check if response is JSON
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        return JSON.parse(text);
+      } catch {
+        throw new Error('Invalid JSON response from server');
+      }
+    }
+
+    // Response is not JSON (likely HTML error page)
+    if (text.toLowerCase().includes('<!doctype') || text.toLowerCase().includes('<html')) {
+      throw new Error('Server returned an error page. The API may be unavailable.');
+    }
+
+    // Try to parse anyway in case content-type is wrong
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(text || 'Unknown server error');
+    }
+  }
+
+  /**
    * Register a new user
    */
   async register(credentials: RegisterCredentials): Promise<User> {
-    const response = await fetch(`${API_BASE}/api/auth/register`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    });
+    let response: Response;
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Registration failed');
+    try {
+      response = await fetch(`${API_BASE}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      });
+    } catch (_networkError) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
     }
 
-    const data: AuthResponse = await response.json();
+    if (!response.ok) {
+      const error = await this.parseJsonResponse(response);
+      throw new Error(error.error || error.message || `Registration failed (${response.status})`);
+    }
+
+    const data: AuthResponse = await this.parseJsonResponse(response);
 
     // Store tokens
     this.accessToken = data.accessToken;
@@ -79,20 +114,26 @@ class AuthService {
    * Login existing user
    */
   async login(credentials: LoginCredentials): Promise<User> {
-    const response = await fetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(credentials),
-    });
+    let response: Response;
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Login failed');
+    try {
+      response = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      });
+    } catch (_networkError) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
     }
 
-    const data: AuthResponse = await response.json();
+    if (!response.ok) {
+      const error = await this.parseJsonResponse(response);
+      throw new Error(error.error || error.message || `Login failed (${response.status})`);
+    }
+
+    const data: AuthResponse = await this.parseJsonResponse(response);
 
     // Store tokens
     this.accessToken = data.accessToken;
@@ -162,10 +203,11 @@ class AuthService {
       }
 
       if (!response.ok) {
-        throw new Error('Failed to fetch user profile');
+        const error = await this.parseJsonResponse(response).catch(() => ({}));
+        throw new Error(error.error || 'Failed to fetch user profile');
       }
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(response);
 
       return {
         id: data.user.id.toString(),
@@ -202,18 +244,18 @@ class AuthService {
 
       if (!response.ok) {
         // Refresh token invalid or expired
-        this.logout();
+        await this.logout();
         return false;
       }
 
-      const data = await response.json();
+      const data = await this.parseJsonResponse(response);
       this.accessToken = data.accessToken;
       localStorage.setItem('accessToken', data.accessToken);
 
       return true;
     } catch (error) {
       console.error('Error refreshing token:', error);
-      this.logout();
+      await this.logout();
       return false;
     }
   }
