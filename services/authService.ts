@@ -1,6 +1,7 @@
 import { User } from '../types';
 
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+// Use empty string for relative URLs - nginx/Vite proxy handles routing to backend
+const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
 
 interface AuthResponse {
   user: {
