@@ -1,7 +1,13 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'streamhub-secret-change-in-production';
+// JWT_SECRET must be set in production
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('FATAL: JWT_SECRET environment variable must be set in production');
+  process.exit(1);
+}
+const EFFECTIVE_JWT_SECRET = JWT_SECRET || 'dev-only-insecure-secret-do-not-use-in-production';
 const JWT_EXPIRES_IN = '7d';
 const JWT_REFRESH_EXPIRES_IN = '30d';
 
@@ -14,10 +20,9 @@ function generateAccessToken(user) {
   return jwt.sign(
     {
       id: user.id,
-      email: user.email,
-      username: user.username
+      // Don't include PII like email in tokens - just the ID
     },
-    JWT_SECRET,
+    EFFECTIVE_JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   );
 }
@@ -30,7 +35,7 @@ function generateAccessToken(user) {
 function generateRefreshToken(user) {
   return jwt.sign(
     { id: user.id, type: 'refresh' },
-    JWT_SECRET,
+    EFFECTIVE_JWT_SECRET,
     { expiresIn: JWT_REFRESH_EXPIRES_IN }
   );
 }
@@ -42,7 +47,7 @@ function generateRefreshToken(user) {
  */
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, EFFECTIVE_JWT_SECRET);
   } catch (error) {
     throw new Error('Invalid or expired token');
   }

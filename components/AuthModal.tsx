@@ -59,12 +59,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
         });
       }
 
-      // Success - call the callback
+      // Success - call the callback with properly mapped user data
       onAuthSuccess({
-        ...user,
+        id: user.id,
+        email: user.email,
+        name: user.name || user.username || name, // Fallback to form name
         username: user.username,
-        cloudHoursUsed: 0,
-        cloudHoursLimit: user.plan === 'admin' ? Infinity : 5,
+        plan: user.plan,
+        cloudHoursUsed: user.cloudHoursUsed || 0,
+        cloudHoursLimit: user.cloudHoursLimit || (user.plan === 'admin' ? Infinity : 5),
       });
 
       // Reset form
@@ -161,14 +164,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
             </button>
         </form>
 
-        <div className="px-8 pb-4">
-             <div className="text-[10px] text-center text-gray-500 uppercase font-bold mb-2 tracking-widest">Dev / Demo Shortcuts</div>
-             <div className="grid grid-cols-3 gap-2">
-                 <button onClick={() => quickLogin('always_free')} className="text-xs bg-dark-700 hover:bg-dark-600 p-2 rounded text-gray-300">Free Tier</button>
-                 <button onClick={() => quickLogin('pro')} className="text-xs bg-brand-900/40 hover:bg-brand-900 p-2 rounded text-brand-400">Pro Plan</button>
-                 <button onClick={() => quickLogin('business')} className="text-xs bg-purple-900/40 hover:bg-purple-900 p-2 rounded text-purple-400">Business</button>
-             </div>
-        </div>
+        {/* Demo shortcuts - only show in development */}
+        {import.meta.env.DEV && (
+          <div className="px-8 pb-4">
+               <div className="text-[10px] text-center text-gray-500 uppercase font-bold mb-2 tracking-widest">Dev / Demo Shortcuts</div>
+               <div className="grid grid-cols-3 gap-2">
+                   <button onClick={() => quickLogin('always_free')} className="text-xs bg-dark-700 hover:bg-dark-600 p-2 rounded text-gray-300">Free Tier</button>
+                   <button onClick={() => quickLogin('pro')} className="text-xs bg-brand-900/40 hover:bg-brand-900 p-2 rounded text-brand-400">Pro Plan</button>
+                   <button onClick={() => quickLogin('business')} className="text-xs bg-purple-900/40 hover:bg-purple-900 p-2 rounded text-purple-400">Business</button>
+               </div>
+          </div>
+        )}
 
         <div className="p-4 bg-dark-900 border-t border-gray-800 text-center">
             {mode === 'login' ? (

@@ -7,6 +7,9 @@ interface AuthResponse {
     id: number;
     email: string;
     username: string;
+    plan: string;
+    cloudHoursUsed: number;
+    cloudHoursLimit: number;
   };
   accessToken: string;
   refreshToken: string;
@@ -61,8 +64,11 @@ class AuthService {
     return {
       id: data.user.id.toString(),
       email: data.user.email,
+      name: data.user.username, // Map username to name for frontend
       username: data.user.username,
-      plan: 'always_free', // Default plan
+      plan: (data.user.plan as any) || 'free_trial',
+      cloudHoursUsed: data.user.cloudHoursUsed || 0,
+      cloudHoursLimit: data.user.cloudHoursLimit || 5,
     };
   }
 
@@ -94,8 +100,11 @@ class AuthService {
     return {
       id: data.user.id.toString(),
       email: data.user.email,
+      name: data.user.username, // Map username to name for frontend
       username: data.user.username,
-      plan: 'always_free', // Default plan - should be fetched from backend
+      plan: (data.user.plan as any) || 'always_free',
+      cloudHoursUsed: data.user.cloudHoursUsed || 0,
+      cloudHoursLimit: data.user.cloudHoursLimit || 5,
     };
   }
 
@@ -157,8 +166,11 @@ class AuthService {
       return {
         id: data.user.id.toString(),
         email: data.user.email,
+        name: data.user.username, // Map username to name for frontend
         username: data.user.username,
-        plan: 'always_free', // Should be from backend
+        plan: (data.user.plan as any) || 'always_free',
+        cloudHoursUsed: data.user.cloudHoursUsed || 0,
+        cloudHoursLimit: data.user.cloudHoursLimit || 5,
       };
     } catch (error) {
       console.error('Error fetching current user:', error);

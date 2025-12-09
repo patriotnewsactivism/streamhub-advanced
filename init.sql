@@ -1,13 +1,15 @@
 -- StreamHub Pro Database Initialization
 -- PostgreSQL Schema for User Data and Stream Configurations
 
--- Users table
+-- Users table with full auth and plan support
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     username VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255),
     plan VARCHAR(50) DEFAULT 'always_free', -- 'always_free', 'free_trial', 'pro', 'business', 'admin'
+    cloud_hours_used INTEGER DEFAULT 0,
+    cloud_hours_limit INTEGER DEFAULT 5,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
