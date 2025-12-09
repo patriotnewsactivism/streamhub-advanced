@@ -114,7 +114,7 @@ const ChatScreamerLeaderboard: React.FC<ChatScreamerLeaderboardProps> = ({
                 </div>
                 <div>
                   <h2 className="text-2xl font-black text-white">WEEKLY LEADERBOARD</h2>
-                  <p className="text-purple-200 text-sm">Most ChatScreamers received wins!</p>
+                  <p className="text-purple-200 text-sm">Most ChatScreams received wins!</p>
                 </div>
               </div>
               <button
@@ -185,7 +185,7 @@ const ChatScreamerLeaderboard: React.FC<ChatScreamerLeaderboardProps> = ({
                     <Zap size={16} className="text-purple-400" />
                     <span className="text-2xl font-black text-white">{entry.chatScreamerCount}</span>
                   </div>
-                  <div className="text-xs text-gray-400">ChatScreamers</div>
+                  <div className="text-xs text-gray-400">ChatScreams</div>
                 </div>
 
                 {/* Earnings */}
@@ -204,7 +204,7 @@ const ChatScreamerLeaderboard: React.FC<ChatScreamerLeaderboardProps> = ({
         <div className="p-4 bg-dark-900 border-t border-gray-700">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-400">
-              <span className="text-purple-400 font-bold">Pro tip:</span> Share your ChatScreamer link to get more donations!
+              <span className="text-purple-400 font-bold">Pro tip:</span> Share your ChatScream link to get more donations!
             </div>
             <button
               onClick={onClose}
@@ -224,11 +224,11 @@ const ChatScreamerLeaderboard: React.FC<ChatScreamerLeaderboardProps> = ({
             </summary>
             <div className="px-3 pb-3 text-xs text-gray-500 space-y-1">
               <p>• Contest runs Sunday 12:00 AM to Saturday 11:59 PM (UTC)</p>
-              <p>• Winner determined by total number of individual ChatScreamer donations received</p>
+              <p>• Winner determined by total number of individual ChatScream donations received</p>
               <p>• Minimum $5 donations only - no self-donations allowed</p>
               <p>• Prize: 1 month FREE Business tier ($59.99 value)</p>
               <p>• Winner announced every Sunday and credited automatically</p>
-              <p>• StreamHub reserves the right to disqualify fraudulent entries</p>
+              <p>• ChatScream by We The People News reserves the right to disqualify fraudulent entries</p>
             </div>
           </details>
         </div>

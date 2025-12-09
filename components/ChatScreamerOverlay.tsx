@@ -190,9 +190,10 @@ const ChatScreamerOverlay: React.FC<ChatScreamerOverlayProps> = ({
               </div>
             </div>
 
-            {/* ChatScreamer branding */}
-            <div className="mt-8 text-2xl text-white/80 font-black tracking-widest">
-              CHATSCREAMER™
+            {/* ChatScream branding */}
+            <div className="mt-8 flex flex-col items-center">
+              <span className="text-4xl font-black bg-gradient-to-r from-red-500 via-white to-blue-500 bg-clip-text text-transparent" style={{ fontFamily: 'Georgia, serif' }}>ChatScream</span>
+              <span className="text-sm text-white/60 tracking-widest uppercase">by We The People News</span>
             </div>
           </div>
         </div>
@@ -286,9 +287,10 @@ const ChatScreamerOverlay: React.FC<ChatScreamerOverlayProps> = ({
         )}
       </div>
 
-      {/* ChatScreamer branding */}
-      <div className="text-center mt-2 text-xs text-white/60 font-bold tracking-wider drop-shadow">
-        CHATSCREAMER™
+      {/* ChatScream branding */}
+      <div className="text-center mt-2 flex flex-col items-center">
+        <span className="text-lg font-black bg-gradient-to-r from-red-500 via-white to-blue-500 bg-clip-text text-transparent drop-shadow" style={{ fontFamily: 'Georgia, serif' }}>ChatScream</span>
+        <span className="text-[10px] text-white/50 tracking-widest uppercase">by We The People News</span>
       </div>
     </div>
   );

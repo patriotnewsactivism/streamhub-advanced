@@ -270,7 +270,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
           )}
         </div>
         <div className="text-left">
-          <div className="text-xs font-bold text-white">ChatScreamer™</div>
+          <div className="text-xs font-bold text-white">ChatScream</div>
           <div className="text-[10px] text-purple-300">${totalEarnings.toFixed(2)} earned</div>
         </div>
         {currentMessage && (
@@ -287,7 +287,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
       <div className="bg-gradient-to-r from-purple-900 to-pink-900 p-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Megaphone size={18} className="text-purple-300" />
-          <span className="font-bold text-white">ChatScreamer™</span>
+          <span className="font-bold text-white">ChatScream</span>
           <span className="text-xs bg-purple-500/30 px-2 py-0.5 rounded text-purple-200">BETA</span>
         </div>
         <div className="flex items-center gap-1">
@@ -318,7 +318,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
       {showSettingsPanel && (
         <div className="p-3 bg-dark-900 border-b border-gray-700 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">Enable ChatScreamer</span>
+            <span className="text-xs text-gray-400">Enable ChatScream</span>
             <button
               onClick={() => setSettings(s => ({ ...s, enabled: !s.enabled }))}
               className={`w-10 h-5 rounded-full transition-colors ${settings.enabled ? 'bg-purple-500' : 'bg-gray-600'}`}

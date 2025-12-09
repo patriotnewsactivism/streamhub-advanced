@@ -97,7 +97,7 @@ const ChatScreamerSettings: React.FC<ChatScreamerSettingsProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                ChatScreamer™ Settings
+                ChatScream Settings
                 <span className="text-xs bg-purple-500/30 px-2 py-0.5 rounded">BETA</span>
               </h2>
               <p className="text-sm text-purple-200">Configure your donation alerts</p>
@@ -140,7 +140,7 @@ const ChatScreamerSettings: React.FC<ChatScreamerSettingsProps> = ({
               {/* Enable/Disable */}
               <div className="flex items-center justify-between p-4 bg-dark-900 rounded-lg border border-gray-700">
                 <div>
-                  <h3 className="font-bold text-white">Enable ChatScreamer</h3>
+                  <h3 className="font-bold text-white">Enable ChatScream</h3>
                   <p className="text-sm text-gray-400">Allow viewers to send paid messages</p>
                 </div>
                 <button
@@ -154,7 +154,7 @@ const ChatScreamerSettings: React.FC<ChatScreamerSettingsProps> = ({
               {/* Minimum Amount */}
               <div className="p-4 bg-dark-900 rounded-lg border border-gray-700">
                 <h3 className="font-bold text-white mb-2">Minimum Donation</h3>
-                <p className="text-sm text-gray-400 mb-3">$5 minimum to send a ChatScreamer</p>
+                <p className="text-sm text-gray-400 mb-3">$5 minimum to send a ChatScream</p>
                 <div className="flex items-center gap-2">
                   <DollarSign size={18} className="text-green-400" />
                   <input
@@ -217,7 +217,7 @@ const ChatScreamerSettings: React.FC<ChatScreamerSettingsProps> = ({
                 <div>
                   <h3 className="font-bold text-yellow-400">No Profanity Filter</h3>
                   <p className="text-sm text-yellow-200/80">
-                    ChatScreamer allows any message content. Viewers who pay can say whatever they want.
+                    ChatScream allows any message content. Viewers who pay can say whatever they want.
                     You can manually skip messages during stream if needed.
                   </p>
                 </div>
@@ -454,7 +454,7 @@ const ChatScreamerSettings: React.FC<ChatScreamerSettingsProps> = ({
                   <div>
                     <h3 className="font-bold text-white">API Documentation</h3>
                     <p className="text-sm text-purple-200">
-                      Build custom integrations with the ChatScreamer API
+                      Build custom integrations with the ChatScream API
                     </p>
                   </div>
                 </div>
