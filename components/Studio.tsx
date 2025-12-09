@@ -22,6 +22,8 @@ import CloudVMManager from './CloudVMManager';
 import AudioMixer from './AudioMixer';
 import OnboardingTour from './OnboardingTour';
 import PreStreamConfirmation from './PreStreamConfirmation';
+import ChatScreamer, { ChatScreamerMessage } from './ChatScreamer';
+import ChatScreamerOverlay from './ChatScreamerOverlay';
 import { generateStreamMetadata } from '../services/geminiService';
 import streamingService from '../services/streamingService';
 import authService from '../services/authService';
@@ -93,6 +95,9 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
     return !hasSeenOnboarding;
   });
   const [showPreStreamConfirm, setShowPreStreamConfirm] = useState(false);
+
+  // ChatScreamer state
+  const [chatScreamerMessage, setChatScreamerMessage] = useState<ChatScreamerMessage | null>(null);
 
   // Media Streams
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
@@ -601,7 +606,7 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                                     </div>
                                 </div>
                             )}
-                            <CanvasCompositor 
+                            <CanvasCompositor
                                 ref={canvasRef}
                                 layout={layout}
                                 cameraStream={cameraStream}
@@ -610,6 +615,12 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                                 activeVideoUrl={activeVideoUrl}
                                 backgroundUrl={null}
                                 showWatermark={planLimits.showWatermark}
+                            />
+                            {/* ChatScreamer Overlay - renders on top of canvas */}
+                            <ChatScreamerOverlay
+                                message={chatScreamerMessage}
+                                position="center"
+                                animation="bounce"
                             />
                         </>
                     )}
@@ -633,8 +644,13 @@ const Studio: React.FC<StudioProps> = ({ onLogout, user }) => {
                         </button>
                     </div>
 
-                    <div className="flex-1 max-w-xl min-w-[200px]">
+                    <div className="flex-1 flex items-center gap-3 max-w-2xl min-w-[200px]">
                         <AudioMixer mixerState={mixerState} onChange={(k, v) => setMixerState(p => ({...p, [k]: v}))} />
+                        {/* ChatScreamer Control Panel */}
+                        <ChatScreamer
+                            onOverlayMessage={setChatScreamerMessage}
+                            isStreaming={appState.isStreaming}
+                        />
                     </div>
 
                     <div className="flex items-center gap-2">
