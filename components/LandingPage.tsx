@@ -32,11 +32,9 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900/80 backdrop-blur-md border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
-            <div className="bg-gradient-to-br from-brand-400 to-brand-600 p-2 rounded-lg shadow-lg shadow-brand-500/20">
-              <Zap size={24} className="text-white" fill="currentColor" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">StreamHub<span className="text-brand-400">Pro</span></span>
+          <div className="flex flex-col items-start cursor-pointer" onClick={() => window.scrollTo(0,0)}>
+            <span className="text-2xl font-black tracking-tight bg-gradient-to-r from-red-500 via-white to-blue-500 bg-clip-text text-transparent drop-shadow-lg" style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.05em' }}>ChatScream</span>
+            <span className="text-[10px] font-medium text-gray-400 tracking-widest uppercase -mt-1">by We The People News</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -252,7 +250,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
          <div className="max-w-6xl mx-auto px-6">
             <div className="text-center mb-16">
                  <h2 className="text-3xl md:text-5xl font-bold mb-4">Compare & Conquer</h2>
-                 <p className="text-gray-400 text-lg">See why StreamHub Pro is the smart choice.</p>
+                 <p className="text-gray-400 text-lg">See why ChatScream is the smart choice.</p>
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-gray-800 shadow-2xl">
@@ -260,7 +258,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                     <thead>
                         <tr className="bg-dark-800 text-gray-400 text-sm uppercase tracking-wider">
                             <th className="p-6 font-medium">Feature</th>
-                            <th className="p-6 font-bold text-white bg-brand-900/20 border-b-2 border-brand-500 w-1/4">StreamHub Pro</th>
+                            <th className="p-6 font-bold text-white bg-brand-900/20 border-b-2 border-brand-500 w-1/4">ChatScream</th>
                             <th className="p-6 font-medium w-1/4">StreamYard (Basic)</th>
                             <th className="p-6 font-medium w-1/4">OneStream (Standard)</th>
                         </tr>
@@ -318,7 +316,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
                      <li className="flex gap-2"><Check size={16} className="text-white"/> Full Studio Access</li>
                      <li className="flex gap-2"><Check size={16} className="text-white"/> 1 Streaming Destination</li>
                      <li className="flex gap-2"><X size={16} className="text-red-500"/> No Cloud VM Access</li>
-                     <li className="flex gap-2"><X size={16} className="text-red-500"/> StreamHub Watermark</li>
+                     <li className="flex gap-2"><X size={16} className="text-red-500"/> ChatScream Watermark</li>
                  </ul>
                  <button onClick={() => handleOpenAuth('signup')} className="mt-auto w-full py-3 rounded-xl border border-gray-600 text-white font-bold hover:bg-gray-700 transition-colors">
                      Get Started
@@ -363,7 +361,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       </section>
 
       <footer className="py-8 text-center text-gray-600 text-sm border-t border-gray-800/50 bg-dark-900">
-          &copy; {new Date().getFullYear()} StreamHub Pro. All rights reserved.
+          &copy; {new Date().getFullYear()} ChatScream by We The People News. All rights reserved.
       </footer>
     </div>
   );

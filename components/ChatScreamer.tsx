@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Megaphone, DollarSign, Volume2, VolumeX, Settings, X,
   Play, Pause, SkipForward, Trash2, Eye, EyeOff, Zap,
-  MessageSquare, Crown, Star, Heart, Flame
+  MessageSquare, Crown, Star, Heart, Flame, ExternalLink
 } from 'lucide-react';
+import { CHATSCREAMER_TIERS, getTierForAmount, ChatScreamerTier } from '../services/stripeService';
+import ChatScreamerSettingsModal from './ChatScreamerSettings';
 
 // Types for ChatScreamer
 export interface ChatScreamerMessage {
@@ -14,7 +16,7 @@ export interface ChatScreamerMessage {
   currency: string;
   timestamp: Date;
   status: 'pending' | 'playing' | 'completed' | 'skipped';
-  tier: 'bronze' | 'silver' | 'gold' | 'diamond';
+  tier: ChatScreamerTier;
   platform?: string;
 }
 
@@ -38,19 +40,13 @@ interface ChatScreamerProps {
   isStreaming: boolean;
 }
 
-// Tier configurations with colors and icons
-const TIER_CONFIG = {
-  bronze: { min: 1, color: 'from-amber-700 to-amber-900', icon: MessageSquare, label: 'Bronze' },
-  silver: { min: 5, color: 'from-gray-300 to-gray-500', icon: Star, label: 'Silver' },
-  gold: { min: 20, color: 'from-yellow-400 to-yellow-600', icon: Crown, label: 'Gold' },
-  diamond: { min: 100, color: 'from-cyan-300 to-blue-500', icon: Flame, label: 'Diamond' },
-};
-
-const getTier = (amount: number): 'bronze' | 'silver' | 'gold' | 'diamond' => {
-  if (amount >= 100) return 'diamond';
-  if (amount >= 20) return 'gold';
-  if (amount >= 5) return 'silver';
-  return 'bronze';
+// Tier visual configurations (colors and icons for UI)
+const TIER_VISUAL_CONFIG = {
+  basic: { color: 'from-blue-600 to-blue-800', icon: MessageSquare, label: 'Shout' },
+  loud: { color: 'from-green-500 to-emerald-700', icon: Volume2, label: 'LOUD' },
+  mega: { color: 'from-yellow-400 to-orange-600', icon: Star, label: 'MEGA' },
+  ultra: { color: 'from-red-500 to-pink-600', icon: Crown, label: 'ULTRA' },
+  legendary: { color: 'from-purple-500 via-pink-500 to-red-500', icon: Flame, label: '🔥 LEGENDARY' },
 };
 
 // Voice options using Web Speech API
@@ -66,12 +62,13 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
   const [queue, setQueue] = useState<ChatScreamerMessage[]>([]);
   const [currentMessage, setCurrentMessage] = useState<ChatScreamerMessage | null>(null);
   const [isPaused, setIsPaused] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [showFullSettings, setShowFullSettings] = useState(false);
   const [totalEarnings, setTotalEarnings] = useState(0);
 
   const [settings, setSettings] = useState<ChatScreamerSettings>({
     enabled: true,
-    minAmount: 1,
+    minAmount: 5, // $5 minimum!
     voiceEnabled: true,
     voiceId: 'default',
     voiceSpeed: 1,
@@ -81,7 +78,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
     overlayAnimation: 'bounce',
     soundEffect: 'chime',
     autoPlay: true,
-    profanityFilter: true,
+    profanityFilter: false, // No filter - they paid for it!
   });
 
   const speechSynthRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -107,6 +104,9 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
   }, []);
 
   const playMessage = useCallback(async (message: ChatScreamerMessage) => {
+    // Get tier configuration - higher tiers = more obnoxious!
+    const tierConfig = CHATSCREAMER_TIERS[message.tier];
+
     // Update status
     setQueue(prev => prev.map(m =>
       m.id === message.id ? { ...m, status: 'playing' as const } : m
@@ -114,32 +114,38 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
     setCurrentMessage(message);
     onOverlayMessage(message);
 
-    // Play sound effect
-    if (settings.soundEffect !== 'none') {
-      playSoundEffect(settings.soundEffect);
-    }
+    // Play tier-appropriate sound effect
+    playSoundEffect(tierConfig.soundEffect);
 
-    // Speak the message with TTS
+    // Speak the message with TTS - tier affects speed and volume
     if (settings.voiceEnabled && 'speechSynthesis' in window) {
-      const text = `${message.donorName} says: ${message.message}`;
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = settings.voiceSpeed;
-      utterance.volume = settings.voiceVolume;
+      const repeatCount = tierConfig.repeatMessage || 1;
 
-      // Try to find a suitable voice
-      const voices = speechSynthesis.getVoices();
-      if (voices.length > 0) {
-        utterance.voice = voices[0]; // Use first available voice
+      for (let i = 0; i < repeatCount; i++) {
+        const text = i === 0
+          ? `${message.donorName} says: ${message.message}`
+          : message.message; // Just repeat the message on subsequent times
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = tierConfig.voiceSpeed;
+        utterance.volume = tierConfig.voiceVolume;
+
+        // Try to find a suitable voice
+        const voices = speechSynthesis.getVoices();
+        if (voices.length > 0) {
+          utterance.voice = voices[0];
+        }
+
+        speechSynthRef.current = utterance;
+        speechSynthesis.speak(utterance);
       }
-
-      speechSynthRef.current = utterance;
-      speechSynthesis.speak(utterance);
     }
 
-    // Set timer to complete message
+    // Set timer to complete message - TIER DETERMINES DURATION!
+    // Higher tiers stay on screen WAY longer
     timerRef.current = setTimeout(() => {
       completeMessage(message.id);
-    }, settings.overlayDuration);
+    }, tierConfig.duration);
   }, [settings, onOverlayMessage]);
 
   const playSoundEffect = (effect: string) => {
@@ -209,19 +215,27 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
     setQueue(prev => prev.filter(m => m.status === 'pending' || m.status === 'playing'));
   };
 
-  // Demo: Add test message
+  // Demo: Add test message with tier-appropriate obnoxiousness
   const addTestMessage = () => {
-    const amounts = [2, 5, 10, 25, 50, 100, 500];
-    const names = ['CoolViewer123', 'StreamFan', 'GenerousGamer', 'SuperSupporter', 'BigDonor'];
+    const amounts = [5, 7, 10, 15, 25, 35, 50, 75, 100, 150, 500];
+    const names = ['xX_D0N0R_Xx', 'MoneyBags420', 'ULTRA_FAN', 'StreamSimp', 'BigBallerBob', 'CryptoKing', 'Anonymous'];
     const messages = [
-      'Love the stream! Keep it up!',
-      'This is amazing content!',
-      'You are the best streamer ever!',
-      'Shoutout from Canada!',
-      'First time catching you live!',
+      'NOTICE ME SENPAI!!!',
+      'This stream is absolutely poggers my dude!',
+      'I LOVE YOU SO MUCH OMG!!!!!!',
+      'First!!! Wait this isnt YouTube...',
+      'My mom said I could stay up late to watch!',
+      'LETS GOOOOOOOO!!!!',
+      'Subscribe to my channel too lol jk... unless?',
+      'I spent my rent money on this WORTH IT',
+      'EVERYONE LOOK AT ME I PAID FOR THIS',
+      'Can you say hi to my friend Dave? HI DAVE!',
     ];
 
     const amount = amounts[Math.floor(Math.random() * amounts.length)];
+    const tier = getTierForAmount(amount);
+    const tierConfig = CHATSCREAMER_TIERS[tier];
+
     const newMessage: ChatScreamerMessage = {
       id: Date.now().toString(),
       donorName: names[Math.floor(Math.random() * names.length)],
@@ -230,7 +244,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
       currency: 'USD',
       timestamp: new Date(),
       status: 'pending',
-      tier: getTier(amount),
+      tier: tier,
     };
 
     setQueue(prev => [...prev, newMessage]);
@@ -238,7 +252,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
   };
 
   const pendingCount = queue.filter(m => m.status === 'pending').length;
-  const TierIcon = currentMessage ? TIER_CONFIG[currentMessage.tier].icon : Megaphone;
+  const TierIcon = currentMessage ? TIER_VISUAL_CONFIG[currentMessage.tier].icon : Megaphone;
 
   // Compact view
   if (!isExpanded) {
@@ -256,7 +270,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
           )}
         </div>
         <div className="text-left">
-          <div className="text-xs font-bold text-white">ChatScreamer™</div>
+          <div className="text-xs font-bold text-white">ChatScream</div>
           <div className="text-[10px] text-purple-300">${totalEarnings.toFixed(2)} earned</div>
         </div>
         {currentMessage && (
@@ -273,15 +287,23 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
       <div className="bg-gradient-to-r from-purple-900 to-pink-900 p-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Megaphone size={18} className="text-purple-300" />
-          <span className="font-bold text-white">ChatScreamer™</span>
+          <span className="font-bold text-white">ChatScream</span>
           <span className="text-xs bg-purple-500/30 px-2 py-0.5 rounded text-purple-200">BETA</span>
         </div>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)}
             className="p-1.5 hover:bg-white/10 rounded transition-colors"
+            title="Quick Settings"
           >
             <Settings size={16} className="text-purple-300" />
+          </button>
+          <button
+            onClick={() => setShowFullSettings(true)}
+            className="p-1.5 hover:bg-white/10 rounded transition-colors"
+            title="Full Settings"
+          >
+            <ExternalLink size={16} className="text-purple-300" />
           </button>
           <button
             onClick={() => setIsExpanded(false)}
@@ -292,11 +314,11 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
         </div>
       </div>
 
-      {/* Settings Panel */}
-      {showSettings && (
+      {/* Quick Settings Panel */}
+      {showSettingsPanel && (
         <div className="p-3 bg-dark-900 border-b border-gray-700 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-400">Enable ChatScreamer</span>
+            <span className="text-xs text-gray-400">Enable ChatScream</span>
             <button
               onClick={() => setSettings(s => ({ ...s, enabled: !s.enabled }))}
               className={`w-10 h-5 rounded-full transition-colors ${settings.enabled ? 'bg-purple-500' : 'bg-gray-600'}`}
@@ -393,7 +415,7 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
 
       {/* Now Playing */}
       {currentMessage && (
-        <div className={`p-3 bg-gradient-to-r ${TIER_CONFIG[currentMessage.tier].color} border-b border-gray-700`}>
+        <div className={`p-3 bg-gradient-to-r ${TIER_VISUAL_CONFIG[currentMessage.tier].color} border-b border-gray-700`}>
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <TierIcon size={16} className="text-white" />
@@ -446,8 +468,8 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
                 msg.status === 'completed' ? 'opacity-50' : ''
               } ${msg.status === 'playing' ? 'bg-purple-900/20' : ''}`}
             >
-              <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${TIER_CONFIG[msg.tier].color} flex items-center justify-center`}>
-                {React.createElement(TIER_CONFIG[msg.tier].icon, { size: 14, className: 'text-white' })}
+              <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${TIER_VISUAL_CONFIG[msg.tier].color} flex items-center justify-center`}>
+                {React.createElement(TIER_VISUAL_CONFIG[msg.tier].icon, { size: 14, className: 'text-white' })}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -488,9 +510,17 @@ const ChatScreamer: React.FC<ChatScreamerProps> = ({ onOverlayMessage, isStreami
       {/* Integration Note */}
       <div className="p-2 bg-dark-900 border-t border-gray-700">
         <p className="text-[10px] text-gray-500 text-center">
-          Connect Stripe, PayPal, or StreamElements for real donations
+          $5 minimum • Higher donations = MORE OBNOXIOUS
         </p>
       </div>
+
+      {/* Full Settings Modal */}
+      <ChatScreamerSettingsModal
+        isOpen={showFullSettings}
+        onClose={() => setShowFullSettings(false)}
+        streamerId="user-123"
+        streamerName="Streamer"
+      />
     </div>
   );
 };
