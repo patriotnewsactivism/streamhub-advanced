@@ -32,9 +32,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-dark-900/80 backdrop-blur-md border-b border-gray-800">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex flex-col items-start cursor-pointer gap-1" onClick={() => window.scrollTo(0,0)}>
-            <span className="brand-title text-3xl md:text-4xl">ChatScream</span>
-            <span className="brand-subtitle text-[11px] text-gray-300">by We The People News</span>
+          <div className="flex items-center gap-4 cursor-pointer brand-logo" onClick={() => window.scrollTo(0,0)}>
+            <div className="brand-orb">
+              <div className="brand-wave" />
+              <div className="brand-wave brand-wave-2" />
+              <div className="brand-spark" />
+              <div className="brand-icon">CS</div>
+            </div>
+            <div className="flex flex-col items-start gap-1 leading-tight">
+              <span className="brand-title text-3xl md:text-4xl">ChatScream</span>
+              <span className="brand-subtitle text-[11px] text-gray-300">Broadcast louder from the cloud</span>
+            </div>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-300">
             <a href="#features" className="hover:text-white transition-colors">Features</a>
@@ -71,6 +79,17 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
           <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
             Link your Google Drive, Dropbox, or S3 files and broadcast 4K video directly from the cloud. Your phone is just the remote.
           </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+            <div className="brand-ribbon shadow-lg shadow-brand-600/20">
+              <Sparkles size={14} className="text-brand-500" />
+              Sonic identity crafted for creators
+            </div>
+            <div className="brand-ribbon shadow-lg shadow-purple-500/20">
+              <Mic size={14} className="text-pink-300" />
+              We The People News signature drop
+            </div>
+          </div>
           
           <div className="flex flex-col md:flex-row items-center justify-center gap-4">
             <button 
