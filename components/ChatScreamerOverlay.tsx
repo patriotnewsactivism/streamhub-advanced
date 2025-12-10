@@ -193,7 +193,7 @@ const ChatScreamerOverlay: React.FC<ChatScreamerOverlayProps> = ({
             {/* ChatScream branding */}
             <div className="mt-8 flex flex-col items-center">
               <span className="brand-title text-4xl">ChatScream</span>
-              <span className="brand-subtitle text-sm text-white/70">by We The People News</span>
+              <span className="brand-subtitle text-sm text-white/70">Broadcast louder from the cloud</span>
             </div>
           </div>
         </div>
@@ -290,7 +290,7 @@ const ChatScreamerOverlay: React.FC<ChatScreamerOverlayProps> = ({
       {/* ChatScream branding */}
       <div className="text-center mt-2 flex flex-col items-center">
         <span className="brand-title text-lg">ChatScream</span>
-        <span className="brand-subtitle text-[10px] text-white/60">by We The People News</span>
+        <span className="brand-subtitle text-[10px] text-white/60">Broadcast louder from the cloud</span>
       </div>
     </div>
   );

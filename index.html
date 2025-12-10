@@ -51,27 +51,125 @@
           scrollbar-width: none;
       }
 
-      /* ChatScreamer Animations */
+      /* ChatScreamer Branding */
+      .brand-logo {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .brand-orb {
+        position: relative;
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: radial-gradient(circle at 30% 30%, #67e8f9 0%, #0ea5e9 45%, #0b1220 80%);
+        box-shadow: 0 15px 40px rgba(8, 47, 73, 0.5), 0 0 0 6px rgba(14, 165, 233, 0.12), 0 0 40px rgba(236, 72, 153, 0.18);
+        overflow: hidden;
+        isolation: isolate;
+      }
+
+      .brand-wave {
+        position: absolute;
+        inset: -8px;
+        border-radius: 20px;
+        border: 1px solid rgba(56, 189, 248, 0.4);
+        animation: pulse-wave 3s ease-out infinite;
+      }
+
+      .brand-wave-2 {
+        animation-delay: 1s;
+        border-color: rgba(236, 72, 153, 0.35);
+      }
+
+      .brand-icon {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        color: #e0f2fe;
+        font-size: 0.9rem;
+        text-shadow: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 12px rgba(56, 189, 248, 0.7);
+        mix-blend-mode: screen;
+      }
+
+      .brand-spark {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        border-radius: 9999px;
+        background: radial-gradient(circle, #facc15 0%, #f97316 60%, rgba(249, 115, 22, 0) 100%);
+        box-shadow: 0 0 0 8px rgba(249, 115, 22, 0.08), 0 10px 30px rgba(249, 115, 22, 0.25);
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        animation: spark-orbit 4s linear infinite;
+      }
+
       .brand-title {
-        display: inline-block;
-        padding: 0.2em 0.35em;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0.2em 0.4em;
         font-family: 'Inter', 'Montserrat', 'Segoe UI', system-ui, sans-serif;
         font-weight: 900;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.1em;
         text-transform: uppercase;
         color: #e2f3ff;
-        background: linear-gradient(135deg, #d9f1ff 0%, #38bdf8 45%, #0ea5e9 100%);
-        -webkit-text-stroke: 2px #0b1220;
-        text-shadow: 0 8px 16px rgba(0, 0, 0, 0.45), 0 0 24px rgba(14, 165, 233, 0.4);
+        background: linear-gradient(120deg, #f472b6 0%, #38bdf8 45%, #22d3ee 70%, #a855f7 100%);
+        -webkit-text-stroke: 1px rgba(4, 6, 20, 0.75);
+        text-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 30px rgba(34, 211, 238, 0.6), 0 0 60px rgba(168, 85, 247, 0.45);
+        border-radius: 12px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .brand-title::after {
+        content: '';
+        position: absolute;
+        inset: 2px;
         border-radius: 10px;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0));
+        mix-blend-mode: screen;
       }
 
       .brand-subtitle {
-        letter-spacing: 0.16em;
+        letter-spacing: 0.24em;
         text-transform: uppercase;
-        font-weight: 700;
+        font-weight: 800;
       }
 
+      .brand-ribbon {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 9999px;
+        background: linear-gradient(90deg, rgba(14, 165, 233, 0.16), rgba(168, 85, 247, 0.1));
+        border: 1px solid rgba(56, 189, 248, 0.35);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        font-weight: 700;
+        color: #e0f2fe;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      @keyframes pulse-wave {
+        0% { transform: scale(0.75); opacity: 0.8; }
+        70% { transform: scale(1.35); opacity: 0; }
+        100% { transform: scale(1.35); opacity: 0; }
+      }
+
+      @keyframes spark-orbit {
+        0% { transform: translate(-50%, -50%) rotate(0deg) translateX(0); }
+        50% { transform: translate(-50%, -50%) rotate(180deg) translateX(6px); }
+        100% { transform: translate(-50%, -50%) rotate(360deg) translateX(0); }
+      }
+
+      /* ChatScreamer Animations */
       @keyframes bounce-in {
         0% { transform: scale(0) translateX(-50%); opacity: 0; }
         50% { transform: scale(1.1) translateX(-50%); }
