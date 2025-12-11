@@ -1,8 +1,25 @@
 import { Destination } from '../types';
 import authService from './authService';
+import { API_BASE as CLIENT_API_BASE } from './apiClient';
 
-const WS_URL = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:3000';
-const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+const resolveWebSocketUrl = () => {
+  const explicitUrl = import.meta.env.VITE_BACKEND_WS_URL;
+  if (explicitUrl) return explicitUrl.replace(/\/$/, '');
+
+  const base = (CLIENT_API_BASE || '').replace(/\/$/, '');
+  if (base.startsWith('http://') || base.startsWith('https://')) {
+    return `${base.replace(/^http/, 'ws')}`;
+  }
+
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return window.location.origin.replace(/^http/, 'ws');
+  }
+
+  return 'ws://localhost:3000';
+};
+
+const WS_URL = resolveWebSocketUrl();
+const API_BASE = (import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 interface StreamStartResponse {
   success: boolean;
@@ -138,11 +155,13 @@ class StreamingService {
   private async connectWebSocket(token: string, stream: MediaStream): Promise<void> {
     return new Promise((resolve, reject) => {
       this.ws = new WebSocket(WS_URL);
+      const timeout = setTimeout(() => {
+        reject(new Error('WebSocket handshake timed out'));
+      }, 8000);
 
       this.ws.onopen = () => {
         console.log('[StreamingService] WebSocket connected');
 
-        // Authenticate
         this.ws!.send(JSON.stringify({
           type: 'authenticate',
           token,
@@ -156,10 +175,9 @@ class StreamingService {
 
           switch (data.type) {
             case 'authenticated':
+              clearTimeout(timeout);
               console.log('[StreamingService] Authenticated, starting MediaRecorder');
               this.startMediaRecorder(stream);
-
-              // Notify backend that stream is starting
               this.ws!.send(JSON.stringify({ type: 'stream_start' }));
               resolve();
               break;
@@ -169,21 +187,26 @@ class StreamingService {
               break;
 
             case 'error':
+              clearTimeout(timeout);
               console.error('[StreamingService] Error:', data.message);
               reject(new Error(data.message));
               break;
           }
         } catch (error) {
+          clearTimeout(timeout);
           console.error('[StreamingService] Error parsing WebSocket message:', error);
+          reject(new Error('Invalid message from streaming server'));
         }
       };
 
       this.ws.onerror = (error) => {
+        clearTimeout(timeout);
         console.error('[StreamingService] WebSocket error:', error);
         reject(new Error('WebSocket connection failed'));
       };
 
       this.ws.onclose = () => {
+        clearTimeout(timeout);
         console.log('[StreamingService] WebSocket disconnected');
         if (this.isStreaming) {
           console.warn('[StreamingService] Unexpected disconnect while streaming');
