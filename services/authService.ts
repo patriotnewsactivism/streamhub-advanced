@@ -1,7 +1,5 @@
 import { User } from '../types';
-
-// Use empty string for relative URLs - nginx/Vite proxy handles routing to backend
-const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
+import { buildUrl } from './apiClient';
 
 interface AuthResponse {
   user: {
@@ -74,7 +72,7 @@ class AuthService {
     let response: Response;
 
     try {
-      response = await fetch(`${API_BASE}/api/auth/register`, {
+      response = await fetch(buildUrl('/api/auth/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -87,7 +85,12 @@ class AuthService {
 
     if (!response.ok) {
       const error = await this.parseJsonResponse(response);
-      throw new Error(error.error || error.message || `Registration failed (${response.status})`);
+      const validationMessage = Array.isArray(error?.errors)
+        ? error.errors.map((issue: any) => issue.msg || issue.message).join(' ')
+        : null;
+      throw new Error(
+        validationMessage || error.error || error.message || `Registration failed (${response.status})`
+      );
     }
 
     const data: AuthResponse = await this.parseJsonResponse(response);
@@ -117,7 +120,7 @@ class AuthService {
     let response: Response;
 
     try {
-      response = await fetch(`${API_BASE}/api/auth/login`, {
+      response = await fetch(buildUrl('/api/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +133,12 @@ class AuthService {
 
     if (!response.ok) {
       const error = await this.parseJsonResponse(response);
-      throw new Error(error.error || error.message || `Login failed (${response.status})`);
+      const validationMessage = Array.isArray(error?.errors)
+        ? error.errors.map((issue: any) => issue.msg || issue.message).join(' ')
+        : null;
+      throw new Error(
+        validationMessage || error.error || error.message || `Login failed (${response.status})`
+      );
     }
 
     const data: AuthResponse = await this.parseJsonResponse(response);
@@ -159,7 +167,7 @@ class AuthService {
   async logout(): Promise<void> {
     try {
       if (this.accessToken) {
-        await fetch(`${API_BASE}/api/auth/logout`, {
+        await fetch(buildUrl('/api/auth/logout'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
@@ -186,7 +194,7 @@ class AuthService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/me`, {
+      const response = await fetch(buildUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
         },
@@ -234,7 +242,7 @@ class AuthService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+      const response = await fetch(buildUrl('/api/auth/refresh'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

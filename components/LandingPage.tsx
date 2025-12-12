@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import AuthModal from './AuthModal';
-import { 
-  Zap, Globe, Cpu, Smartphone, Layout, Mic, 
-  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle, X, Check, Cloud, Database 
+import {
+  Zap, Globe, Cpu, Smartphone, Layout, Mic, DollarSign, Megaphone,
+  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle, X, Check, Cloud, Database
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -103,6 +103,44 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
             </button>
           </div>
           <p className="mt-4 text-sm text-gray-500">7-Day Free Trial • No Credit Card Required for Signup</p>
+        </div>
+      </section>
+
+      {/* Differentiator Strip */}
+      <section className="px-6 pb-16 md:pb-20">
+        <div className="max-w-6xl mx-auto bg-dark-800/70 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+          <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-800">
+            <div className="p-8 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-brand-900/40 flex items-center justify-center text-brand-400">
+                <Megaphone size={22} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-brand-300 uppercase tracking-wide">Signal Boost</div>
+                <h3 className="text-xl font-bold mb-1">Chatscreamers are impossible to ignore</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">Donor shout-outs take over the overlay with text-to-speech and visuals, so every message gets seen and heard.</p>
+              </div>
+            </div>
+            <div className="p-8 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-purple-900/30 flex items-center justify-center text-purple-300">
+                <Globe size={22} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-purple-200 uppercase tracking-wide">Audience Guarantee</div>
+                <h3 className="text-xl font-bold mb-1">Everywhere your stream goes</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">Multi-destination publishing and on-screen alerts mean a single donation is amplified across every platform you syndicate to.</p>
+              </div>
+            </div>
+            <div className="p-8 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-green-900/30 flex items-center justify-center text-green-300">
+                <DollarSign size={22} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-green-200 uppercase tracking-wide">Creator-First</div>
+                <h3 className="text-xl font-bold mb-1">Donation-powered storytelling</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">Viewers donate to get their message blasted—perfect for rallies, community calls, and viral moments.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
