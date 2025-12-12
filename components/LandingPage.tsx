@@ -106,6 +106,43 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         </div>
       </section>
 
+      {/* Differentiator */}
+      <section className="px-6 pb-12">
+        <div className="max-w-6xl mx-auto bg-dark-800/50 border border-gray-800 rounded-2xl p-8 md:p-10 shadow-2xl">
+          <div className="flex flex-col md:flex-row gap-6 md:items-center">
+            <div className="flex-1">
+              <p className="text-xs uppercase tracking-[0.2em] font-bold text-brand-400 mb-2">What makes us different</p>
+              <h2 className="text-3xl md:text-4xl font-extrabold mb-3 leading-tight">ChatScreamers are impossible to ignore.</h2>
+              <p className="text-gray-300 text-lg mb-4 leading-relaxed">
+                ChatScream takes every donation and turns it into a megaphone moment. Messages are shouted over the stream, splashed across overlays, and piped into the mix so <span className="font-bold text-white">everyone sees it and hears it</span>.
+              </p>
+              <div className="grid md:grid-cols-3 gap-3">
+                <div className="p-4 bg-dark-900/60 border border-brand-500/30 rounded-xl">
+                  <div className="text-sm font-bold text-white mb-1">Donation powered</div>
+                  <p className="text-sm text-gray-400">Backers pay to amplify their message—perfect for fundraisers, rallies, and callouts.</p>
+                </div>
+                <div className="p-4 bg-dark-900/60 border border-purple-500/30 rounded-xl">
+                  <div className="text-sm font-bold text-white mb-1">Dual impact</div>
+                  <p className="text-sm text-gray-400">Audio + visual overlays keep every scream sticky while you stay hands-free.</p>
+                </div>
+                <div className="p-4 bg-dark-900/60 border border-green-500/30 rounded-xl">
+                  <div className="text-sm font-bold text-white mb-1">Creator controlled</div>
+                  <p className="text-sm text-gray-400">Set minimums, animation styles, and voice options so the energy matches your brand.</p>
+                </div>
+              </div>
+            </div>
+            <div className="md:w-64 w-full bg-gradient-to-br from-brand-600/30 via-purple-500/20 to-dark-900 rounded-2xl border border-gray-800 p-6 shadow-inner">
+              <div className="text-sm text-gray-400 uppercase tracking-widest font-bold mb-3">Chat Screamer Flow</div>
+              <ol className="space-y-3 text-sm text-white font-semibold">
+                <li className="flex items-start gap-3"><span className="mt-1 w-6 h-6 flex items-center justify-center rounded-full bg-brand-600 text-xs">1</span> Donor submits message with a tip</li>
+                <li className="flex items-start gap-3"><span className="mt-1 w-6 h-6 flex items-center justify-center rounded-full bg-purple-600 text-xs">2</span> ChatScreamer blasts it across overlay & speakers</li>
+                <li className="flex items-start gap-3"><span className="mt-1 w-6 h-6 flex items-center justify-center rounded-full bg-green-600 text-xs">3</span> Audience instantly hears & sees the shout</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Interface Preview */}
       <section className="px-4 pb-20 relative z-20">
         <div className="max-w-6xl mx-auto rounded-xl border border-gray-800 bg-dark-800/50 backdrop-blur-sm p-2 shadow-2xl">
