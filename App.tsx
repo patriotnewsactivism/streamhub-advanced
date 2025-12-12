@@ -4,6 +4,7 @@ import LandingPage from './components/LandingPage';
 import Studio from './components/Studio';
 import { User } from './types';
 import { pingBackend } from './services/apiClient';
+import authService from './services/authService';
 
 const App = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -18,6 +19,24 @@ const App = () => {
       .catch((error) => {
         console.error('Backend healthcheck failed', error);
         if (!cancelled) setBackendStatus('offline');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    authService
+      .getCurrentUser()
+      .then((existingUser) => {
+        if (!cancelled && existingUser) {
+          setUser(existingUser);
+        }
+      })
+      .catch((error) => {
+        console.warn('Unable to restore session', error);
       });
 
     return () => {
