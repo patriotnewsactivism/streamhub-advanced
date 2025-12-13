@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import AuthModal from './AuthModal';
-import { 
-  Zap, Globe, Cpu, Smartphone, Layout, Mic, 
-  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle, X, Check, Cloud, Database 
+import {
+  Zap, Globe, Cpu, Smartphone, Layout, Mic, DollarSign, Megaphone,
+  ArrowRight, Play, Server, Shield, Sparkles, CheckCircle, X, Check, Cloud, Database
 } from 'lucide-react';
 
 interface LandingPageProps {
@@ -106,38 +106,39 @@ const LandingPage: React.FC<LandingPageProps> = ({ onLogin }) => {
         </div>
       </section>
 
-      {/* Differentiator */}
-      <section className="px-6 pb-12">
-        <div className="max-w-6xl mx-auto bg-dark-800/50 border border-gray-800 rounded-2xl p-8 md:p-10 shadow-2xl">
-          <div className="flex flex-col md:flex-row gap-6 md:items-center">
-            <div className="flex-1">
-              <p className="text-xs uppercase tracking-[0.2em] font-bold text-brand-400 mb-2">What makes us different</p>
-              <h2 className="text-3xl md:text-4xl font-extrabold mb-3 leading-tight">ChatScreamers are impossible to ignore.</h2>
-              <p className="text-gray-300 text-lg mb-4 leading-relaxed">
-                ChatScream takes every donation and turns it into a megaphone moment. Messages are shouted over the stream, splashed across overlays, and piped into the mix so <span className="font-bold text-white">everyone sees it and hears it</span>.
-              </p>
-              <div className="grid md:grid-cols-3 gap-3">
-                <div className="p-4 bg-dark-900/60 border border-brand-500/30 rounded-xl">
-                  <div className="text-sm font-bold text-white mb-1">Donation powered</div>
-                  <p className="text-sm text-gray-400">Backers pay to amplify their message—perfect for fundraisers, rallies, and callouts.</p>
-                </div>
-                <div className="p-4 bg-dark-900/60 border border-purple-500/30 rounded-xl">
-                  <div className="text-sm font-bold text-white mb-1">Dual impact</div>
-                  <p className="text-sm text-gray-400">Audio + visual overlays keep every scream sticky while you stay hands-free.</p>
-                </div>
-                <div className="p-4 bg-dark-900/60 border border-green-500/30 rounded-xl">
-                  <div className="text-sm font-bold text-white mb-1">Creator controlled</div>
-                  <p className="text-sm text-gray-400">Set minimums, animation styles, and voice options so the energy matches your brand.</p>
-                </div>
+      {/* Differentiator Strip */}
+      <section className="px-6 pb-16 md:pb-20">
+        <div className="max-w-6xl mx-auto bg-dark-800/70 border border-gray-800 rounded-2xl shadow-xl overflow-hidden">
+          <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-800">
+            <div className="p-8 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-brand-900/40 flex items-center justify-center text-brand-400">
+                <Megaphone size={22} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-brand-300 uppercase tracking-wide">Signal Boost</div>
+                <h3 className="text-xl font-bold mb-1">Chatscreamers are impossible to ignore</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">Donor shout-outs take over the overlay with text-to-speech and visuals, so every message gets seen and heard.</p>
               </div>
             </div>
-            <div className="md:w-64 w-full bg-gradient-to-br from-brand-600/30 via-purple-500/20 to-dark-900 rounded-2xl border border-gray-800 p-6 shadow-inner">
-              <div className="text-sm text-gray-400 uppercase tracking-widest font-bold mb-3">Chat Screamer Flow</div>
-              <ol className="space-y-3 text-sm text-white font-semibold">
-                <li className="flex items-start gap-3"><span className="mt-1 w-6 h-6 flex items-center justify-center rounded-full bg-brand-600 text-xs">1</span> Donor submits message with a tip</li>
-                <li className="flex items-start gap-3"><span className="mt-1 w-6 h-6 flex items-center justify-center rounded-full bg-purple-600 text-xs">2</span> ChatScreamer blasts it across overlay & speakers</li>
-                <li className="flex items-start gap-3"><span className="mt-1 w-6 h-6 flex items-center justify-center rounded-full bg-green-600 text-xs">3</span> Audience instantly hears & sees the shout</li>
-              </ol>
+            <div className="p-8 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-purple-900/30 flex items-center justify-center text-purple-300">
+                <Globe size={22} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-purple-200 uppercase tracking-wide">Audience Guarantee</div>
+                <h3 className="text-xl font-bold mb-1">Everywhere your stream goes</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">Multi-destination publishing and on-screen alerts mean a single donation is amplified across every platform you syndicate to.</p>
+              </div>
+            </div>
+            <div className="p-8 flex items-start gap-4">
+              <div className="w-12 h-12 rounded-full bg-green-900/30 flex items-center justify-center text-green-300">
+                <DollarSign size={22} />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-green-200 uppercase tracking-wide">Creator-First</div>
+                <h3 className="text-xl font-bold mb-1">Donation-powered storytelling</h3>
+                <p className="text-gray-400 text-sm leading-relaxed">Viewers donate to get their message blasted—perfect for rallies, community calls, and viral moments.</p>
+              </div>
             </div>
           </div>
         </div>

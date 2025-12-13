@@ -1,10 +1,5 @@
 import { User } from '../types';
-
-// Use empty string for relative URLs - nginx/Vite proxy handles routing to backend
-const API_BASE = import.meta.env.VITE_BACKEND_URL || '';
-const OFFLINE_USER_KEY = 'chatScreamerOfflineUser';
-const OFFLINE_ACCESS_TOKEN = 'offline-access-token';
-const OFFLINE_REFRESH_TOKEN = 'offline-refresh-token';
+import { buildUrl } from './apiClient';
 
 interface AuthResponse {
   user: {
@@ -119,7 +114,7 @@ export class AuthService {
     let response: Response;
 
     try {
-      response = await fetch(`${API_BASE}/api/auth/register`, {
+      response = await fetch(buildUrl('/api/auth/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -132,12 +127,13 @@ export class AuthService {
     }
 
     if (!response.ok) {
-      const error = await this.parseJsonResponse(response).catch(() => ({}));
-      if (response.status >= 500) {
-        console.warn('Backend unavailable, using offline signup experience');
-        return this.fallbackToOfflineUser(credentials.email, credentials.username);
-      }
-      throw new Error(error.error || error.message || `Registration failed (${response.status})`);
+      const error = await this.parseJsonResponse(response);
+      const validationMessage = Array.isArray(error?.errors)
+        ? error.errors.map((issue: any) => issue.msg || issue.message).join(' ')
+        : null;
+      throw new Error(
+        validationMessage || error.error || error.message || `Registration failed (${response.status})`
+      );
     }
 
     const data: AuthResponse = await this.parseJsonResponse(response);
@@ -167,7 +163,7 @@ export class AuthService {
     let response: Response;
 
     try {
-      response = await fetch(`${API_BASE}/api/auth/login`, {
+      response = await fetch(buildUrl('/api/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -180,12 +176,13 @@ export class AuthService {
     }
 
     if (!response.ok) {
-      const error = await this.parseJsonResponse(response).catch(() => ({}));
-      if (response.status >= 500) {
-        console.warn('Backend unavailable, using offline login experience');
-        return this.fallbackToOfflineUser(credentials.email);
-      }
-      throw new Error(error.error || error.message || `Login failed (${response.status})`);
+      const error = await this.parseJsonResponse(response);
+      const validationMessage = Array.isArray(error?.errors)
+        ? error.errors.map((issue: any) => issue.msg || issue.message).join(' ')
+        : null;
+      throw new Error(
+        validationMessage || error.error || error.message || `Login failed (${response.status})`
+      );
     }
 
     const data: AuthResponse = await this.parseJsonResponse(response);
@@ -213,8 +210,8 @@ export class AuthService {
    */
   async logout(): Promise<void> {
     try {
-      if (this.accessToken && this.accessToken !== OFFLINE_ACCESS_TOKEN) {
-        await fetch(`${API_BASE}/api/auth/logout`, {
+      if (this.accessToken) {
+        await fetch(buildUrl('/api/auth/logout'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
@@ -247,7 +244,7 @@ export class AuthService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/me`, {
+      const response = await fetch(buildUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
         },
@@ -297,7 +294,7 @@ export class AuthService {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/refresh`, {
+      const response = await fetch(buildUrl('/api/auth/refresh'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

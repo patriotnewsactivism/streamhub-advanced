@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { User, UserPlan } from '../types';
 import { X, Lock, Mail, User as UserIcon } from 'lucide-react';
 import authService from '../services/authService';
@@ -18,6 +18,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showDemoOption, setShowDemoOption] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setShowDemoOption(false);
+      setError(null);
+      setMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
 
@@ -77,7 +86,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
       onClose();
     } catch (err: any) {
       console.error('Authentication error:', err);
-      setError(err.message || 'Authentication failed');
+      const message = err?.message || 'Authentication failed';
+      setError(message);
+      const normalizedMessage = message.toLowerCase();
+      if (
+        normalizedMessage.includes('network') ||
+        normalizedMessage.includes('server') ||
+        normalizedMessage.includes('502') ||
+        normalizedMessage.includes('503') ||
+        normalizedMessage.includes('500')
+      ) {
+        setShowDemoOption(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -165,7 +185,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
         </form>
 
         {/* Demo shortcuts - only show in development */}
-        {import.meta.env.DEV && (
+        {(import.meta.env.DEV || showDemoOption) && (
           <div className="px-8 pb-4">
                <div className="text-[10px] text-center text-gray-500 uppercase font-bold mb-2 tracking-widest">Dev / Demo Shortcuts</div>
                <div className="grid grid-cols-3 gap-2">
@@ -173,6 +193,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onAuthSuccess, i
                    <button onClick={() => quickLogin('pro')} className="text-xs bg-brand-900/40 hover:bg-brand-900 p-2 rounded text-brand-400">Pro Plan</button>
                    <button onClick={() => quickLogin('business')} className="text-xs bg-purple-900/40 hover:bg-purple-900 p-2 rounded text-purple-400">Business</button>
                </div>
+               {showDemoOption && (
+                 <p className="text-[11px] text-center text-gray-400 mt-2">
+                   Backend is unreachable right now. Use an instant demo login to explore ChatScreamer without waiting.
+                 </p>
+               )}
           </div>
         )}
 
