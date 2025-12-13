@@ -26,7 +26,7 @@ interface RegisterCredentials {
   password: string;
 }
 
-class AuthService {
+export class AuthService {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
@@ -34,6 +34,48 @@ class AuthService {
     // Load tokens from localStorage on init
     this.accessToken = localStorage.getItem('accessToken');
     this.refreshToken = localStorage.getItem('refreshToken');
+  }
+
+  private getOfflineUser(): User | null {
+    const stored = localStorage.getItem(OFFLINE_USER_KEY);
+    if (!stored) return null;
+
+    try {
+      return JSON.parse(stored) as User;
+    } catch (error) {
+      console.warn('Failed to parse offline user profile', error);
+      localStorage.removeItem(OFFLINE_USER_KEY);
+      return null;
+    }
+  }
+
+  private persistOfflineSession(user: User): User {
+    this.accessToken = OFFLINE_ACCESS_TOKEN;
+    this.refreshToken = OFFLINE_REFRESH_TOKEN;
+    localStorage.setItem('accessToken', OFFLINE_ACCESS_TOKEN);
+    localStorage.setItem('refreshToken', OFFLINE_REFRESH_TOKEN);
+    localStorage.setItem(OFFLINE_USER_KEY, JSON.stringify(user));
+    return user;
+  }
+
+  private buildOfflineUser(email: string, username?: string): User {
+    const derivedUsername =
+      username || email?.split('@')[0] || 'creator';
+
+    return {
+      id: `offline-${derivedUsername}`,
+      email,
+      name: derivedUsername,
+      username: derivedUsername,
+      plan: 'free_trial',
+      cloudHoursUsed: 0,
+      cloudHoursLimit: 5,
+    };
+  }
+
+  private fallbackToOfflineUser(email: string, username?: string): User {
+    const offlineUser = this.getOfflineUser() || this.buildOfflineUser(email, username);
+    return this.persistOfflineSession(offlineUser);
   }
 
   /**
@@ -80,7 +122,8 @@ class AuthService {
         body: JSON.stringify(credentials),
       });
     } catch (_networkError) {
-      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+      console.warn('Falling back to offline auth after network error');
+      return this.fallbackToOfflineUser(credentials.email, credentials.username);
     }
 
     if (!response.ok) {
@@ -128,7 +171,8 @@ class AuthService {
         body: JSON.stringify(credentials),
       });
     } catch (_networkError) {
-      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+      console.warn('Falling back to offline auth after network error');
+      return this.fallbackToOfflineUser(credentials.email);
     }
 
     if (!response.ok) {
@@ -182,6 +226,7 @@ class AuthService {
       this.refreshToken = null;
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem(OFFLINE_USER_KEY);
     }
   }
 
@@ -190,7 +235,12 @@ class AuthService {
    */
   async getCurrentUser(): Promise<User | null> {
     if (!this.accessToken) {
-      return null;
+      return this.getOfflineUser();
+    }
+
+    // Serve offline users without making a network request
+    if (this.accessToken === OFFLINE_ACCESS_TOKEN) {
+      return this.getOfflineUser();
     }
 
     try {
@@ -229,6 +279,8 @@ class AuthService {
       };
     } catch (error) {
       console.error('Error fetching current user:', error);
+      const offlineUser = this.getOfflineUser();
+      if (offlineUser) return offlineUser;
       return null;
     }
   }
@@ -237,7 +289,7 @@ class AuthService {
    * Refresh access token using refresh token
    */
   async refreshAccessToken(): Promise<boolean> {
-    if (!this.refreshToken) {
+    if (!this.refreshToken || this.refreshToken === OFFLINE_REFRESH_TOKEN) {
       return false;
     }
 
