@@ -1,5 +1,5 @@
 import { User } from '../types';
-import { buildUrl } from './apiClient';
+import { apiFetch } from './apiClient';
 
 interface AuthResponse {
   user: {
@@ -25,6 +25,10 @@ interface RegisterCredentials {
   username: string;
   password: string;
 }
+
+const OFFLINE_ACCESS_TOKEN = 'offline-access-token';
+const OFFLINE_REFRESH_TOKEN = 'offline-refresh-token';
+const OFFLINE_USER_KEY = 'chatScreamerOfflineUser';
 
 export class AuthService {
   private accessToken: string | null = null;
@@ -114,7 +118,7 @@ export class AuthService {
     let response: Response;
 
     try {
-      response = await fetch(buildUrl('/api/auth/register'), {
+      response = await apiFetch('/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -123,10 +127,15 @@ export class AuthService {
       });
     } catch (_networkError) {
       console.warn('Falling back to offline auth after network error');
-      return this.fallbackToOfflineUser(credentials.email, credentials.username);
+      return this.fallbackToOfflineUser(credentials.email);
     }
 
     if (!response.ok) {
+      if (response.status >= 500) {
+        console.warn('Falling back to offline auth after server error');
+        return this.fallbackToOfflineUser(credentials.email);
+      }
+
       const error = await this.parseJsonResponse(response);
       const validationMessage = Array.isArray(error?.errors)
         ? error.errors.map((issue: any) => issue.msg || issue.message).join(' ')
@@ -163,7 +172,7 @@ export class AuthService {
     let response: Response;
 
     try {
-      response = await fetch(buildUrl('/api/auth/login'), {
+      response = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,6 +185,11 @@ export class AuthService {
     }
 
     if (!response.ok) {
+      if (response.status >= 500) {
+        console.warn('Falling back to offline auth after server error');
+        return this.fallbackToOfflineUser(credentials.email);
+      }
+
       const error = await this.parseJsonResponse(response);
       const validationMessage = Array.isArray(error?.errors)
         ? error.errors.map((issue: any) => issue.msg || issue.message).join(' ')
@@ -211,7 +225,7 @@ export class AuthService {
   async logout(): Promise<void> {
     try {
       if (this.accessToken) {
-        await fetch(buildUrl('/api/auth/logout'), {
+        await apiFetch('/api/auth/logout', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
@@ -244,7 +258,7 @@ export class AuthService {
     }
 
     try {
-      const response = await fetch(buildUrl('/api/auth/me'), {
+      const response = await apiFetch('/api/auth/me', {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
         },
@@ -294,7 +308,7 @@ export class AuthService {
     }
 
     try {
-      const response = await fetch(buildUrl('/api/auth/refresh'), {
+      const response = await apiFetch('/api/auth/refresh', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
