@@ -366,7 +366,7 @@ docker-compose up --build
 ### Frontend Environment Variables
 - `NODE_ENV`: production
 - `BACKEND_URL`: URL of the backend service
-- `GEMINI_API_KEY`: Google Gemini API key (if client-side)
+- `GEMINI_API_KEY`: Google Gemini API key (backend only)
 
 ### Backend Environment Variables
 - `NODE_ENV`: production

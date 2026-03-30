@@ -12,7 +12,6 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@google/genai": "^1.31.0",
     "@stripe/stripe-js": "^8.5.3",
     "google": "^2.1.0",
     "lucide-react": "^0.555.0",

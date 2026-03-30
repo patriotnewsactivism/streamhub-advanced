@@ -136,6 +136,79 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Server-side Gemini metadata generation endpoint
+app.post(
+  '/api/ai/generate-metadata',
+  apiLimiter,
+  [body('topic').isString().trim().isLength({ min: 1, max: 200 })],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { topic } = req.body;
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+
+    if (!geminiApiKey) {
+      return res.status(500).json({ error: 'Gemini API key is not configured on the server' });
+    }
+
+    try {
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Generate a catchy, viral-style title, a short engaging description (under 200 chars), and 5 trending hashtags for a live stream about: "${topic}". Return strict JSON with keys: title, description, hashtags.`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+            },
+          }),
+        }
+      );
+
+      if (!geminiResponse.ok) {
+        const errorText = await geminiResponse.text();
+        console.error('Gemini API request failed:', geminiResponse.status, errorText);
+        return res.status(502).json({ error: 'Failed to generate metadata from Gemini' });
+      }
+
+      const geminiData = await geminiResponse.json();
+      const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!rawText) {
+        return res.status(502).json({ error: 'Gemini returned an empty response' });
+      }
+
+      const parsed = JSON.parse(rawText);
+      const title =
+        typeof parsed.title === 'string' ? parsed.title : `${topic} - Live Stream`;
+      const description =
+        typeof parsed.description === 'string'
+          ? parsed.description
+          : `Watch as we dive deep into ${topic}. Streaming now!`;
+      const hashtags = Array.isArray(parsed.hashtags)
+        ? parsed.hashtags.filter((tag) => typeof tag === 'string').slice(0, 5)
+        : ['#live', '#streaming', `#${String(topic).replace(/\s/g, '')}`];
+
+      return res.json({ title, description, hashtags });
+    } catch (error) {
+      console.error('Error generating metadata:', error);
+      return res.status(500).json({ error: 'Failed to generate stream metadata' });
+    }
+  }
+);
+
 // Database test endpoint
 app.get('/api/test-db', async (req, res) => {
   try {
