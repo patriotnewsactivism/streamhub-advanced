@@ -92,7 +92,7 @@ curl https://streamhub-pro-177289312201.us-west1.run.app/api/users
 
 ## Next Steps
 
-1. **Apply Database Schema** - Currently being deployed via Cloud Run Job
+1. **Apply Database Schema via CI/CD Job** - Use `cloudbuild-init.yaml` / `backend/init-db.js` (do not use `POST /api/init-database` in production)
 2. **Test Database Connectivity** - Verify all API endpoints work correctly
 3. **Frontend Integration** - Update frontend to use new backend API
 4. **Authentication** - Implement JWT or session-based auth (Priority 1)

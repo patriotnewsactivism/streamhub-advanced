@@ -4,16 +4,17 @@ require('dotenv').config();
 // PostgreSQL Connection Setup for Cloud SQL
 const isCloudSQL = process.env.INSTANCE_CONNECTION_NAME;
 
-const pgConfig = isCloudSQL ? {
-  user: process.env.DB_USER || 'streamhub',
-  password: process.env.DB_PASS || '',
-  database: process.env.DB_NAME || 'streamhub',
-  host: `/cloudsql/${process.env.INSTANCE_CONNECTION_NAME}`,
-} : {
-  connectionString: process.env.DATABASE_URL || 'postgresql://streamhub:streamhub@localhost:5432/streamhub',
-};
-
-const pool = new Pool(pgConfig);
+const pgConfig = isCloudSQL
+  ? {
+      user: process.env.DB_USER || 'streamhub',
+      password: process.env.DB_PASS || '',
+      database: process.env.DB_NAME || 'streamhub',
+      host: `/cloudsql/${process.env.INSTANCE_CONNECTION_NAME}`,
+    }
+  : {
+      connectionString:
+        process.env.DATABASE_URL || 'postgresql://streamhub:streamhub@localhost:5432/streamhub',
+    };
 
 const schema = `
 -- StreamHub Pro Database Initialization
@@ -107,15 +108,23 @@ INSERT INTO users (email, username) VALUES
 ON CONFLICT (email) DO NOTHING;
 `;
 
-async function initializeDatabase() {
+async function initializeDatabase(options = {}) {
+  const {
+    pool = new Pool(pgConfig),
+    log = console.log,
+    errorLog = console.error,
+    exitOnComplete = true,
+  } = options;
+
+  const ownsPool = !options.pool;
+
   try {
-    console.log('🔄 Initializing database schema...');
+    log('🔄 Initializing database schema...');
 
     await pool.query(schema);
 
-    console.log('✅ Database schema initialized successfully!');
+    log('✅ Database schema initialized successfully!');
 
-    // Verify tables were created
     const result = await pool.query(`
       SELECT table_name
       FROM information_schema.tables
@@ -123,18 +132,40 @@ async function initializeDatabase() {
       ORDER BY table_name
     `);
 
-    console.log('📊 Tables created:');
-    result.rows.forEach(row => {
-      console.log(`  - ${row.table_name}`);
+    log('📊 Tables created:');
+    result.rows.forEach((row) => {
+      log(`  - ${row.table_name}`);
     });
 
-    await pool.end();
-    process.exit(0);
+    if (ownsPool) {
+      await pool.end();
+    }
+
+    if (exitOnComplete) {
+      process.exit(0);
+    }
+
+    return { tables: result.rows.map((row) => row.table_name) };
   } catch (error) {
-    console.error('❌ Error initializing database:', error);
-    await pool.end();
-    process.exit(1);
+    errorLog('❌ Error initializing database:', error);
+
+    if (ownsPool) {
+      await pool.end();
+    }
+
+    if (exitOnComplete) {
+      process.exit(1);
+    }
+
+    throw error;
   }
 }
 
-initializeDatabase();
+if (require.main === module) {
+  initializeDatabase();
+}
+
+module.exports = {
+  schema,
+  initializeDatabase,
+};
