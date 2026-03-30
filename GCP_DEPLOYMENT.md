@@ -428,11 +428,12 @@ gcloud monitoring uptime-checks create streamhub-frontend \
      -c 'SELECT NOW();'
    ```
 
-4. **Run the schema job after deployments** to keep Cloud SQL in sync with the latest `init.sql` in the repo:
+4. **Run the schema job after deployments** to keep Cloud SQL in sync with the latest schema from `backend/init-db.js`:
    ```bash
    gcloud builds submit --config cloudbuild-init.yaml \
-     --substitutions _INSTANCE_CONNECTION_NAME=${INSTANCE},_DB_USER=${DB_USER},_DB_NAME=${DB_NAME}
+     --substitutions _INSTANCE_CONNECTION_NAME=${INSTANCE},_DB_USER=${DB_USER},_DB_PASS=${DB_PASS},_DB_NAME=${DB_NAME}
    ```
+   > Do **not** initialize schema through `POST /api/init-database` in production. That endpoint is blocked by default and only exists as a break-glass admin path for non-production/internal workflows.
 
 5. **Smoke-test the VM networking path** by curling the backend from inside the Compute Engine instance that handles RTMP/FFmpeg relay:
    ```bash
