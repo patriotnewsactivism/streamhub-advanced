@@ -119,6 +119,8 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+app.use('/api', apiLimiter);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
