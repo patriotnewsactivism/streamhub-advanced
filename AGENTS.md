@@ -33,6 +33,6 @@
 - Link issues or related PRs when applicable, and avoid landing large, multi-surface diffs—split frontend/backend/infrastructure work into separate PRs for clearer review.
 
 ## Security & Configuration Tips
-- Never commit secrets; base configs live in `.env.example`. Required keys: `VITE_GEMINI_API_KEY` for the frontend and DB/Redis URLs for the backend/docker-compose stack.
+- Never commit secrets; base configs live in `.env.example`. Required keys: backend `GEMINI_API_KEY` plus DB/Redis URLs for the backend/docker-compose stack.
 - Keep streaming ports consistent with `docker-compose.yml` (1935 RTMP, 8000 HLS) and update `default.conf` if you change routing.
 - If modifying storage or cloud imports, ensure bucket permissions and CORS rules align with the GCS settings referenced in `GCP_DEPLOYMENT.md`.

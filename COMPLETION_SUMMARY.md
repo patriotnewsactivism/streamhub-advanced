@@ -178,7 +178,7 @@ cp backend/.env.example backend/.env
 
 # Edit .env files with your values
 # Frontend .env:
-#   - VITE_GEMINI_API_KEY=your-api-key
+#   - GEMINI_API_KEY=your-api-key
 #   - VITE_BACKEND_URL=http://localhost:3000
 #   - VITE_BACKEND_WS_URL=ws://localhost:3000
 
@@ -388,7 +388,7 @@ curl -X POST http://localhost:3000/api/auth/login \
 ### Frontend (.env)
 
 ```bash
-VITE_GEMINI_API_KEY=your-gemini-api-key
+GEMINI_API_KEY=your-gemini-api-key
 VITE_BACKEND_URL=http://localhost:3000
 VITE_BACKEND_WS_URL=ws://localhost:3000
 ```
