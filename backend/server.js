@@ -713,7 +713,7 @@ app.post('/api/sessions', authMiddleware, async (req, res) => {
 });
 
 // End stream session
-app.patch('/api/sessions/:id/end', async (req, res) => {
+app.patch('/api/sessions/:id/end', authMiddleware, async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -722,12 +722,27 @@ app.patch('/api/sessions/:id/end', async (req, res) => {
        SET ended_at = CURRENT_TIMESTAMP,
            duration_seconds = EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - started_at))::INTEGER,
            status = 'ended'
-       WHERE id = $1 AND ended_at IS NULL
+       WHERE id = $1
+         AND user_id = $2
+         AND ended_at IS NULL
        RETURNING *`,
-      [id]
+      [id, req.user.id]
     );
 
     if (result.rows.length === 0) {
+      const sessionCheck = await pool.query(
+        'SELECT user_id, ended_at FROM stream_sessions WHERE id = $1',
+        [id]
+      );
+
+      if (sessionCheck.rows.length === 0 || sessionCheck.rows[0].ended_at) {
+        return res.status(404).json({ error: 'Session not found or already ended' });
+      }
+
+      if (sessionCheck.rows[0].user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
       return res.status(404).json({ error: 'Session not found or already ended' });
     }
 
@@ -1047,40 +1062,56 @@ wss.on('connection', (ws, req) => {
   });
 });
 
-// Start Express Server
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log('[server] StreamHub Backend Server Started');
-  console.log(`[server] HTTP API running on port ${PORT}`);
-  console.log(`[server] Environment: ${NODE_ENV}`);
-  console.log(
-    `[server] Database: ${isCloudSQL ? 'Cloud SQL (Unix socket)' : 'Local/VM PostgreSQL'}`
-  );
-  console.log(`[server] Cloud Run: ${IS_CLOUD_RUN ? 'yes' : 'no'}`);
-});
+let server;
 
-// Integrate WebSocket with HTTP server
-server.on('upgrade', (request, socket, head) => {
-  wss.handleUpgrade(request, socket, head, (ws) => {
-    wss.emit('connection', ws, request);
-  });
-});
-
-// Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  server.close(() => {
-    console.log('HTTP server closed');
-  });
-
-  await pool.end();
-  console.log('Database pool closed');
-
-  if (redisClient) {
-    await redisClient.quit();
-    console.log('Redis connection closed');
+function startServer() {
+  if (server) {
+    return server;
   }
 
-  process.exit(0);
-});
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log('[server] StreamHub Backend Server Started');
+    console.log(`[server] HTTP API running on port ${PORT}`);
+    console.log(`[server] Environment: ${NODE_ENV}`);
+    console.log(
+      `[server] Database: ${isCloudSQL ? 'Cloud SQL (Unix socket)' : 'Local/VM PostgreSQL'}`
+    );
+    console.log(`[server] Cloud Run: ${IS_CLOUD_RUN ? 'yes' : 'no'}`);
+  });
 
-module.exports = { app, pool };
+  // Integrate WebSocket with HTTP server
+  server.on('upgrade', (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  });
+
+  // Graceful shutdown
+  process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+
+    if (server) {
+      server.close(() => {
+        console.log('HTTP server closed');
+      });
+    }
+
+    await pool.end();
+    console.log('Database pool closed');
+
+    if (redisClient) {
+      await redisClient.quit();
+      console.log('Redis connection closed');
+    }
+
+    process.exit(0);
+  });
+
+  return server;
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, pool, startServer };
