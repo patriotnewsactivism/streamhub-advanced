@@ -41,7 +41,7 @@ Copy the example file and populate the required secrets before running the app:
 
 ```bash
 cp .env.example .env
-# Edit .env with your VITE_GEMINI_API_KEY and database connection settings
+# Edit .env with your backend connection settings
 ```
 
 ### Option 1: Docker (Recommended)
@@ -65,7 +65,6 @@ open http://localhost:8080
 npm install
 
 # Set environment variables
-export VITE_GEMINI_API_KEY="your-gemini-api-key"
 export VITE_BACKEND_URL="http://localhost:3000"
 
 # Start development server
@@ -159,10 +158,11 @@ npm run dev
 
 ```bash
 # Frontend (Vite)
-VITE_GEMINI_API_KEY=your-gemini-api-key
+VITE_BACKEND_URL=http://localhost:3000
 
 # Backend (docker-compose.yml)
 NODE_ENV=production
+GEMINI_API_KEY=your-gemini-api-key
 REDIS_HOST=redis
 REDIS_PORT=6379
 DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub

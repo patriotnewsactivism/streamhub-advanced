@@ -112,9 +112,9 @@ Create a `.env` file in the root directory:
 NODE_ENV=production
 VITE_BACKEND_URL=http://localhost:3000
 VITE_WS_URL=ws://localhost:3000
-VITE_GEMINI_API_KEY=your_gemini_api_key
 
 # Backend
+GEMINI_API_KEY=your_gemini_api_key
 DATABASE_URL=postgresql://streamhub:streamhub@postgres:5432/streamhub
 REDIS_HOST=redis
 REDIS_PORT=6379

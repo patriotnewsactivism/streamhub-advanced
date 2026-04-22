@@ -10,6 +10,7 @@ require('dotenv').config();
 
 // Import custom modules
 const streamManager = require('./streamManager');
+const { initializeDatabase } = require('./init-db');
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -23,6 +24,8 @@ const {
 // Environment configuration
 const PORT = Number(process.env.PORT) || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const IS_PRODUCTION = NODE_ENV === 'production';
+const ALLOW_PRODUCTION_DB_INIT = process.env.ALLOW_PRODUCTION_DB_INIT === 'true';
 
 // Detect Cloud Run vs VM
 const IS_CLOUD_RUN = !!process.env.K_SERVICE;
@@ -119,6 +122,8 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+app.use('/api', apiLimiter);
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -130,6 +135,79 @@ app.get('/health', (req, res) => {
     cloudRun: IS_CLOUD_RUN,
   });
 });
+
+// Server-side Gemini metadata generation endpoint
+app.post(
+  '/api/ai/generate-metadata',
+  apiLimiter,
+  [body('topic').isString().trim().isLength({ min: 1, max: 200 })],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { topic } = req.body;
+    const geminiApiKey = process.env.GEMINI_API_KEY;
+
+    if (!geminiApiKey) {
+      return res.status(500).json({ error: 'Gemini API key is not configured on the server' });
+    }
+
+    try {
+      const geminiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiApiKey)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `Generate a catchy, viral-style title, a short engaging description (under 200 chars), and 5 trending hashtags for a live stream about: "${topic}". Return strict JSON with keys: title, description, hashtags.`,
+                  },
+                ],
+              },
+            ],
+            generationConfig: {
+              responseMimeType: 'application/json',
+            },
+          }),
+        }
+      );
+
+      if (!geminiResponse.ok) {
+        const errorText = await geminiResponse.text();
+        console.error('Gemini API request failed:', geminiResponse.status, errorText);
+        return res.status(502).json({ error: 'Failed to generate metadata from Gemini' });
+      }
+
+      const geminiData = await geminiResponse.json();
+      const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!rawText) {
+        return res.status(502).json({ error: 'Gemini returned an empty response' });
+      }
+
+      const parsed = JSON.parse(rawText);
+      const title =
+        typeof parsed.title === 'string' ? parsed.title : `${topic} - Live Stream`;
+      const description =
+        typeof parsed.description === 'string'
+          ? parsed.description
+          : `Watch as we dive deep into ${topic}. Streaming now!`;
+      const hashtags = Array.isArray(parsed.hashtags)
+        ? parsed.hashtags.filter((tag) => typeof tag === 'string').slice(0, 5)
+        : ['#live', '#streaming', `#${String(topic).replace(/\s/g, '')}`];
+
+      return res.json({ title, description, hashtags });
+    } catch (error) {
+      console.error('Error generating metadata:', error);
+      return res.status(500).json({ error: 'Failed to generate stream metadata' });
+    }
+  }
+);
 
 // Database test endpoint
 app.get('/api/test-db', async (req, res) => {
@@ -149,148 +227,38 @@ app.get('/api/test-db', async (req, res) => {
   }
 });
 
-// Database initialization endpoint (one-time setup)
-app.post('/api/init-database', async (req, res) => {
+// Database initialization endpoint (legacy/break-glass only)
+app.post('/api/init-database', authMiddleware, async (req, res) => {
+  // Keep this endpoint unavailable in production by default.
+  if (IS_PRODUCTION && !ALLOW_PRODUCTION_DB_INIT) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
   try {
-    console.log('🔄 Initializing database schema...');
+    // Strict admin check from DB (do not trust client-supplied role claims).
+    const adminResult = await pool.query('SELECT id, plan FROM users WHERE id = $1', [req.user.id]);
 
-    const schema = `
-      -- StreamHub Pro Database Initialization
-      -- Users table with full auth support
-      -- Plan tiers: always_free, free_trial, creator ($14.99), pro ($29.99), business ($59.99), admin
-      CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          email VARCHAR(255) UNIQUE NOT NULL,
-          username VARCHAR(100) UNIQUE NOT NULL,
-          password_hash VARCHAR(255),
-          plan VARCHAR(50) DEFAULT 'always_free',
-          cloud_hours_used INTEGER DEFAULT 0,
-          cloud_hours_limit INTEGER DEFAULT 5,
-          trial_end_date TIMESTAMP,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+    if (adminResult.rows.length === 0 || adminResult.rows[0].plan !== 'admin') {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'Admin privileges are required to initialize the database.',
+      });
+    }
 
-      -- Add columns to existing users table if they don't exist
-      DO $$
-      BEGIN
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'password_hash') THEN
-          ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'plan') THEN
-          ALTER TABLE users ADD COLUMN plan VARCHAR(50) DEFAULT 'always_free';
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'cloud_hours_used') THEN
-          ALTER TABLE users ADD COLUMN cloud_hours_used INTEGER DEFAULT 0;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'cloud_hours_limit') THEN
-          ALTER TABLE users ADD COLUMN cloud_hours_limit INTEGER DEFAULT 5;
-        END IF;
-        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'trial_end_date') THEN
-          ALTER TABLE users ADD COLUMN trial_end_date TIMESTAMP;
-        END IF;
-      END $$;
+    const result = await initializeDatabase({
+      pool,
+      log: console.log,
+      exitOnComplete: false,
+    });
 
-      -- Stream destinations table
-      CREATE TABLE IF NOT EXISTS stream_destinations (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-          platform VARCHAR(50) NOT NULL,
-          name VARCHAR(255) NOT NULL,
-          stream_key VARCHAR(500) NOT NULL,
-          stream_url VARCHAR(500) NOT NULL,
-          is_active BOOLEAN DEFAULT true,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Stream sessions table
-      CREATE TABLE IF NOT EXISTS stream_sessions (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-          title VARCHAR(500),
-          description TEXT,
-          started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          ended_at TIMESTAMP,
-          duration_seconds INTEGER,
-          status VARCHAR(50) DEFAULT 'active',
-          metadata JSONB
-      );
-
-      -- Media assets table
-      CREATE TABLE IF NOT EXISTS media_assets (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-          asset_type VARCHAR(50) NOT NULL,
-          filename VARCHAR(500) NOT NULL,
-          storage_url VARCHAR(1000) NOT NULL,
-          file_size_bytes BIGINT,
-          mime_type VARCHAR(100),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-
-      -- Stream analytics table
-      CREATE TABLE IF NOT EXISTS stream_analytics (
-          id SERIAL PRIMARY KEY,
-          session_id INTEGER REFERENCES stream_sessions(id) ON DELETE CASCADE,
-          destination_id INTEGER REFERENCES stream_destinations(id) ON DELETE SET NULL,
-          viewer_count INTEGER DEFAULT 0,
-          recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          metrics JSONB
-      );
-
-      -- Indexes for performance
-      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-      CREATE INDEX IF NOT EXISTS idx_stream_destinations_user ON stream_destinations(user_id);
-      CREATE INDEX IF NOT EXISTS idx_stream_sessions_user ON stream_sessions(user_id);
-      CREATE INDEX IF NOT EXISTS idx_media_assets_user ON media_assets(user_id);
-      CREATE INDEX IF NOT EXISTS idx_stream_analytics_session ON stream_analytics(session_id);
-
-      -- Updated_at trigger function
-      CREATE OR REPLACE FUNCTION update_updated_at_column()
-      RETURNS TRIGGER AS $$
-      BEGIN
-          NEW.updated_at = CURRENT_TIMESTAMP;
-          RETURN NEW;
-      END;
-      $$ language 'plpgsql';
-
-      -- Apply triggers
-      DROP TRIGGER IF EXISTS update_users_updated_at ON users;
-      CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
-          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-      DROP TRIGGER IF EXISTS update_stream_destinations_updated_at ON stream_destinations;
-      CREATE TRIGGER update_stream_destinations_updated_at BEFORE UPDATE ON stream_destinations
-          FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-      -- Insert sample data for testing
-      INSERT INTO users (email, username) VALUES
-          ('demo@streamhub.com', 'demo_user')
-      ON CONFLICT (email) DO NOTHING;
-    `;
-
-    await pool.query(schema);
-
-    // Verify tables were created
-    const result = await pool.query(`
-      SELECT table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-      ORDER BY table_name
-    `);
-
-    console.log('✅ Database schema initialized successfully!');
-    console.log('📊 Tables created:', result.rows.map((r) => r.table_name).join(', '));
-
-    res.json({
+    return res.json({
       success: true,
       message: 'Database schema initialized successfully',
-      tables: result.rows.map((r) => r.table_name),
+      tables: result.tables,
     });
   } catch (error) {
     console.error('❌ Error initializing database:', error);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: 'Failed to initialize database',
       details: error.message,
